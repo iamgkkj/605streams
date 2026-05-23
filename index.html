@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>111Movies Personal Streaming Client</title>
+  
+  <!-- Modern Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  
+  <!-- CSS Stylesheet -->
+  <link rel="stylesheet" href="styles.css">
+  
+  <!-- HLS.js CDN (for streaming .m3u8 on browsers without native support) -->
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+</head>
+<body>
+  <!-- Ambient background glow -->
+  <div class="bg-glow bg-glow-1"></div>
+  <div class="bg-glow bg-glow-2"></div>
+
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="logo-area">
+        <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <rect x="2" y="2" width="20" height="20" rx="4" />
+          <path d="M10 9l5 3-5 3V9z" fill="currentColor" />
+        </svg>
+        <h1>605<span>streams</span></h1>
+      </div>
+      <div class="status-indicator">
+        <span class="status-dot"></span>
+        <span class="status-text" id="connection-status">Ready</span>
+      </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="app-main">
+      <!-- Control Panel (Sidebar) -->
+      <aside class="control-panel">
+        
+        <!-- Stream Config Form -->
+        <section class="panel-section glass-card" id="source-config-card">
+          <h2 class="section-title">
+            <svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            </svg>
+            Stream Loader
+          </h2>
+          
+          <form id="stream-form" class="config-form">
+            <!-- Toggle Movie / TV -->
+            <div class="toggle-group">
+              <label class="toggle-option active">
+                <input type="radio" name="content-type" value="movie" checked>
+                <span>Movie</span>
+              </label>
+              <label class="toggle-option">
+                <input type="radio" name="content-type" value="tv">
+                <span>TV Show</span>
+              </label>
+            </div>
+
+            <!-- Content ID Input -->
+            <div class="input-field">
+              <label for="content-id">Content ID (IMDb or TMDb)</label>
+              <div class="input-wrapper">
+                <input type="text" id="content-id" placeholder="e.g. tt6263850 or 533535" required autocomplete="off">
+                <span class="input-helper">Accepts tt... or numeric ID</span>
+              </div>
+            </div>
+
+            <!-- TV Episode Selectors (Hidden by default, smoothly expanded when TV active) -->
+            <div class="tv-only-fields" id="tv-fields">
+              <div class="grid-2-col">
+                <div class="input-field">
+                  <label for="tv-season">Season</label>
+                  <input type="number" id="tv-season" min="1" value="1" placeholder="1">
+                </div>
+                <div class="input-field">
+                  <label for="tv-episode">Episode</label>
+                  <input type="number" id="tv-episode" min="1" value="1" placeholder="1">
+                </div>
+              </div>
+            </div>
+
+            <!-- Load Button -->
+            <button type="submit" class="btn btn-primary" id="load-btn">
+              <span>Load Stream</span>
+              <svg class="btn-icon-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+                <polyline points="12 5 19 12 12 19"></polyline>
+              </svg>
+            </button>
+          </form>
+        </section>
+
+        <!-- Subtitles Dashboard -->
+        <section class="panel-section glass-card" id="subtitle-config-card">
+          <h2 class="section-title">
+            <svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            </svg>
+            Subtitle Dashboard
+          </h2>
+
+          <div class="subtitle-controls">
+            <!-- Upload Subtitle -->
+            <div class="upload-zone" id="sub-upload-zone">
+              <input type="file" id="sub-file-input" accept=".srt,.vtt" class="hidden-input">
+              <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="17 8 12 3 7 8"></polyline>
+                <line x1="12" y1="3" x2="12" y2="15"></line>
+              </svg>
+              <div class="upload-text">
+                <span class="highlight">Upload subtitle file</span>
+                <span class="subtext">Supports .srt or .vtt</span>
+              </div>
+            </div>
+
+            <!-- Loaded Subtitle Status -->
+            <div class="subtitle-status-bar hidden" id="sub-status-bar">
+              <div class="sub-info">
+                <svg class="sub-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                  <polyline points="14 2 14 8 20 8"></polyline>
+                </svg>
+                <span class="sub-filename" id="loaded-sub-name">subtitle.srt</span>
+              </div>
+              <button class="btn-icon-only remove-sub-btn" id="remove-sub-btn" title="Remove subtitles">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+
+            <!-- Toggle subtitles & Sync features (Disabled until uploaded) -->
+            <div class="sync-panel disabled-opacity" id="sub-settings-panel">
+              <!-- Subtitle Toggle -->
+              <div class="setting-row">
+                <span>Display Subtitles</span>
+                <label class="switch">
+                  <input type="checkbox" id="sub-toggle" checked disabled>
+                  <span class="slider round"></span>
+                </label>
+              </div>
+
+              <!-- Subtitle Offset Slider -->
+              <div class="slider-control">
+                <div class="slider-header">
+                  <span>Sync Shift (Delay)</span>
+                  <span class="offset-value" id="offset-display">0.0s</span>
+                </div>
+                <input type="range" id="offset-slider" min="-10" max="10" step="0.1" value="0" disabled>
+                <div class="slider-labels">
+                  <span>-10.0s (Ahead)</span>
+                  <span>+10.0s (Delayed)</span>
+                </div>
+              </div>
+
+              <!-- Quick adjustment buttons -->
+              <div class="quick-adjust-group">
+                <button class="btn btn-secondary btn-sm" id="btn-sub-minus-1" disabled>-1.0s</button>
+                <button class="btn btn-secondary btn-sm" id="btn-sub-minus-01" disabled>-0.1s</button>
+                <button class="btn btn-secondary btn-sm" id="btn-sub-reset" disabled>Reset</button>
+                <button class="btn btn-secondary btn-sm" id="btn-sub-plus-01" disabled>+0.1s</button>
+                <button class="btn btn-secondary btn-sm" id="btn-sub-plus-1" disabled>+1.0s</button>
+              </div>
+
+              <!-- Download Button -->
+              <button class="btn btn-secondary btn-full" id="download-sub-btn" disabled>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="7 10 12 15 17 10"></polyline>
+                  <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                <span>Download Sync'd Subtitles</span>
+              </button>
+            </div>
+          </div>
+        </section>
+      </aside>
+
+      <!-- Video Display Area (Main) -->
+      <section class="video-workspace">
+        <div class="video-container-wrapper glass-card" id="player-wrapper">
+          <!-- The Video Container that can go fullscreen -->
+          <div class="video-container" id="video-container">
+            <!-- Native HTML5 Video Element -->
+            <video id="main-video" crossorigin="anonymous" playsinline>
+              <!-- Sources loaded dynamically -->
+            </video>
+
+            <!-- Custom Subtitle Overlay -->
+            <div class="subtitle-overlay hidden" id="sub-overlay-div">
+              <span class="subtitle-text-container" id="sub-text-span"></span>
+            </div>
+
+            <!-- Loading Spinner Overlay -->
+            <div class="overlay-screen hidden" id="loading-overlay">
+              <div class="spinner-container">
+                <div class="spinner"></div>
+                <p class="overlay-message" id="loading-msg">Connecting to stream source...</p>
+              </div>
+            </div>
+
+            <!-- Error Banner Overlay -->
+            <div class="overlay-screen error-screen hidden" id="error-overlay">
+              <div class="error-container">
+                <div class="error-icon-box">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                    <line x1="12" y1="9" x2="12" y2="13"></line>
+                    <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                  </svg>
+                </div>
+                <h3 class="error-title">Playback Error</h3>
+                <p class="error-message" id="error-msg">Stream could not be fetched. Please check the ID or try again later.</p>
+                <button class="btn btn-secondary btn-sm" id="dismiss-error-btn">Dismiss</button>
+              </div>
+            </div>
+
+            <!-- Custom Video Player Controls Overlay (Stunning Premium Custom Controls) -->
+            <div class="custom-controls-overlay" id="video-controls">
+              <!-- Top bar or title could go here if needed -->
+              
+              <!-- Center Play/Pause giant overlay icon that flashes on action -->
+              <div class="center-action-indicator" id="center-play-indicator">
+                <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+              </div>
+
+              <!-- Bottom Controls Block -->
+              <div class="controls-bottom-bar">
+                <!-- Timeline Slider -->
+                <div class="timeline-container">
+                  <div class="timeline-bar-wrapper">
+                    <input type="range" class="timeline-slider" id="timeline" min="0" max="100" value="0" step="0.1">
+                    <div class="timeline-progress" id="timeline-progress"></div>
+                    <div class="timeline-buffer" id="timeline-buffer"></div>
+                  </div>
+                </div>
+
+                <!-- Action row -->
+                <div class="controls-row">
+                  <div class="controls-left">
+                    <!-- Play/Pause Button -->
+                    <button class="control-btn" id="ctrl-play-pause" title="Play/Pause (Space)">
+                      <svg class="icon-play" viewBox="0 0 24 24" fill="currentColor">
+                        <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                      </svg>
+                      <svg class="icon-pause hidden" viewBox="0 0 24 24" fill="currentColor">
+                        <rect x="6" y="4" width="4" height="16"></rect>
+                        <rect x="14" y="4" width="4" height="16"></rect>
+                      </svg>
+                    </button>
+
+                    <!-- Volume Group -->
+                    <div class="volume-group">
+                      <button class="control-btn" id="ctrl-mute" title="Mute/Unmute">
+                        <svg class="icon-vol-high" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                          <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                        </svg>
+                        <svg class="icon-vol-mute hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                          <line x1="23" y1="9" x2="17" y2="15"></line>
+                          <line x1="17" y1="9" x2="23" y2="15"></line>
+                        </svg>
+                      </button>
+                      <input type="range" class="volume-slider" id="ctrl-volume-slider" min="0" max="1" step="0.05" value="1">
+                    </div>
+
+                    <!-- Time Display -->
+                    <div class="time-display">
+                      <span id="time-current">0:00</span>
+                      <span class="time-divider">/</span>
+                      <span id="time-duration">0:00</span>
+                    </div>
+                  </div>
+
+                  <div class="controls-right">
+                    <!-- Quick Skip Back (10s) -->
+                    <button class="control-btn" id="ctrl-skip-back" title="Skip back 10 seconds (←)">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+                        <path d="M3 3v5h5"></path>
+                        <text x="12" y="16" font-size="7" font-weight="bold" text-anchor="middle" fill="currentColor" stroke="none" font-family="Outfit">10</text>
+                      </svg>
+                    </button>
+
+                    <!-- Quick Skip Forward (10s) -->
+                    <button class="control-btn" id="ctrl-skip-forward" title="Skip forward 10 seconds (→)">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 12a9 9 0 1 1-9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path>
+                        <path d="M21 3v5h-5"></path>
+                        <text x="12" y="16" font-size="7" font-weight="bold" text-anchor="middle" fill="currentColor" stroke="none" font-family="Outfit">10</text>
+                      </svg>
+                    </button>
+
+                    <!-- Fullscreen Button -->
+                    <button class="control-btn" id="ctrl-fullscreen" title="Fullscreen (F)">
+                      <svg class="icon-maximize" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
+                      </svg>
+                      <svg class="icon-minimize hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M4 14h6v6m10-6h-6v6M4 10h6V4m10 6h-6V4"></path>
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick instructions card below player -->
+        <div class="instructions-panel glass-card">
+          <h3>Keyboard Shortcuts</h3>
+          <div class="shortcuts-grid">
+            <div class="shortcut-item"><kbd>Space</kbd> <span>Play / Pause</span></div>
+            <div class="shortcut-item"><kbd>F</kbd> <span>Toggle Fullscreen</span></div>
+            <div class="shortcut-item"><kbd>M</kbd> <span>Mute / Unmute</span></div>
+            <div class="shortcut-item"><kbd>←</kbd> / <kbd>→</kbd> <span>Skip 10s Back / Forward</span></div>
+            <div class="shortcut-item"><kbd>↑</kbd> / <kbd>↓</kbd> <span>Volume Up / Down</span></div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+      <p>&copy; 2026 605streams Personal Client. Built with pure Vanilla JS and HLS.js. Designed for personal low-load usage.</p>
+    </footer>
+  </div>
+
+  <!-- JavaScript Entry Point Module -->
+  <script type="module" src="app.js"></script>
+</body>
+</html>
