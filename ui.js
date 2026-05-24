@@ -353,6 +353,17 @@ export function initUI() {
       }
     },
 
+    onLoadStart: () => {
+      showSpinner('Loading stream...');
+      setStatus('loading', 'Loading...');
+      hidePlaybackError();
+    },
+
+    onLoadComplete: () => {
+      hideSpinner();
+      setStatus('ready', 'Playing');
+    },
+
     onError: (err) => {
       showPlaybackError(err);
     }

@@ -261,3 +261,33 @@ export function getSubtitleState() {
     filename: originalFilename
   };
 }
+
+/**
+ * Returns active shift offset value
+ * @returns {number}
+ */
+export function getCurrentOffset() {
+  return subtitleOffset;
+}
+
+/**
+ * Resets offset value back to zero
+ */
+export function resetOffset() {
+  subtitleOffset = 0.0;
+}
+
+// Bind to window for console execution
+window.subtitles = {
+  getCurrentOffset,
+  resetOffset,
+  getSubtitleState,
+  initSubtitles,
+  resetSubtitles,
+  parseSubtitleFile,
+  renderCues,
+  setOffset,
+  setEnabled,
+  downloadSubtitle
+};
+

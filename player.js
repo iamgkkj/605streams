@@ -1,8 +1,8 @@
 /**
  * player.js - Hybrid Player Engine Module
  * Supports dual-mode playback:
- * 1. Direct video playback (HLS .m3u8, HTML5 .mp4) using native <video>, Hls.js, custom control bars, and subtitle sync.
- * 2. Iframe embed playback (external domains e.g., 111movies.com) with loading spinner states, hiding custom control bars.
+ * 1. Mode 1: Iframe embed playback (111movies.net) with spinner loading, hiding custom control bars.
+ * 2. Mode 2: Direct video playback (HLS .m3u8, HTML5 .mp4) using native <video>, Hls.js, custom control bars, and subtitle sync.
  */
 
 import { debugLog } from './api.js';
@@ -14,6 +14,7 @@ let mainVideoElement = null;
 let iframeElement = null;
 let playerContainer = null;
 let iframeContainer = null;
+let loadingOverlay = null;
 
 // Event callbacks bound by UI orchestrator
 let callbacks = {
@@ -23,8 +24,26 @@ let callbacks = {
   onStateChange: null,
   onBuffering: null,
   onFullscreenChange: null,
+  onLoadStart: null,
+  onLoadComplete: null,
   onError: null
 };
+
+/**
+ * Triggers loading overlay indicator state
+ */
+function showLoading() {
+  if (loadingOverlay) loadingOverlay.classList.remove('hidden');
+  if (callbacks.onLoadStart) callbacks.onLoadStart();
+}
+
+/**
+ * Dismisses loading overlay indicator state
+ */
+function hideLoading() {
+  if (loadingOverlay) loadingOverlay.classList.add('hidden');
+  if (callbacks.onLoadComplete) callbacks.onLoadComplete();
+}
 
 /**
  * Initializes target elements and binds event listeners for direct video playback.
@@ -36,6 +55,7 @@ export function initPlayer(videoEl, options = {}) {
   mainVideoElement = videoEl;
   playerContainer = document.getElementById('video-container');
   iframeContainer = document.getElementById('iframe-container');
+  loadingOverlay = document.getElementById('loading-overlay');
   
   // Set options callbacks
   callbacks = { ...callbacks, ...options };
@@ -66,6 +86,13 @@ export function initPlayer(videoEl, options = {}) {
       }
     });
 
+    // Dismiss loading overlay on video start/play
+    mainVideoElement.addEventListener('canplay', () => {
+      if (!mainVideoElement.classList.contains('hidden')) {
+        hideLoading();
+      }
+    });
+
     const triggerStateChange = () => {
       if (callbacks.onStateChange && !mainVideoElement.classList.contains('hidden')) {
         callbacks.onStateChange({ playing: !mainVideoElement.paused });
@@ -74,7 +101,12 @@ export function initPlayer(videoEl, options = {}) {
 
     mainVideoElement.addEventListener('play', triggerStateChange);
     mainVideoElement.addEventListener('pause', triggerStateChange);
-    mainVideoElement.addEventListener('playing', triggerStateChange);
+    mainVideoElement.addEventListener('playing', () => {
+      if (!mainVideoElement.classList.contains('hidden')) {
+        hideLoading();
+      }
+      triggerStateChange();
+    });
 
     mainVideoElement.addEventListener('seeking', () => {
       if (callbacks.onBuffering && !mainVideoElement.classList.contains('hidden')) {
@@ -95,8 +127,11 @@ export function initPlayer(videoEl, options = {}) {
     });
 
     mainVideoElement.addEventListener('error', () => {
-      if (callbacks.onError && !mainVideoElement.classList.contains('hidden')) {
-        callbacks.onError(new Error('HTML5 Video element failed to decode source.'));
+      if (!mainVideoElement.classList.contains('hidden')) {
+        hideLoading();
+        if (callbacks.onError) {
+          callbacks.onError(new Error('HTML5 Video element failed to decode source.'));
+        }
       }
     });
   }
@@ -253,8 +288,8 @@ export function toggleFullscreen(containerEl) {
 /**
  * Loads a URL into either the iframe embedding container or Hls.js/HTML5 direct player.
  * Checks file extensions dynamically to switch player modes:
- * - If .m3u8, .mp4, etc. -> Direct mode (shows controls, enables local subtitles).
- * - Otherwise (standard movie/tv urls) -> Iframe embedding mode (auto-hides controls).
+ * - If .m3u8, .mp4, etc. -> Mode 2: Direct video (shows controls, enables local subtitles).
+ * - Otherwise (standard 111movies.net pages) -> Mode 1: Iframe embedding (auto-hides controls).
  * 
  * @param {string} url - Target URL/Source
  */
@@ -262,6 +297,9 @@ export function loadStream(url) {
   currentUrl = url;
   destroyHls();
   
+  // Show loading indicator
+  showLoading();
+
   // Reset native video tags
   if (mainVideoElement) {
     mainVideoElement.pause();
@@ -295,7 +333,7 @@ export function loadStream(url) {
     if (subOverlayDiv) subOverlayDiv.classList.remove('hidden');
     
     // Enable subtitle dashboard options
-    if (subtitleSection) subtitleSection.classList.remove('disabled-opacity');
+    if (subtitleSection) subtitleSection.classList.remove('disabled-opacity', 'hidden');
 
     if (url.toLowerCase().includes('.m3u8')) {
       if (Hls.isSupported()) {
@@ -322,6 +360,7 @@ export function loadStream(url) {
               default:
                 debugLog('Unrecoverable fatal Hls error. Resetting player...');
                 destroyHls();
+                hideLoading();
                 if (callbacks.onError) callbacks.onError(new Error('Fatal streaming decode error.'));
                 break;
             }
@@ -330,6 +369,7 @@ export function loadStream(url) {
       } else if (mainVideoElement.canPlayType('application/vnd.apple.mpegurl')) {
         mainVideoElement.src = url;
       } else {
+        hideLoading();
         if (callbacks.onError) callbacks.onError(new Error('CORS HLS playback not supported by browser.'));
       }
     } else {
@@ -344,8 +384,8 @@ export function loadStream(url) {
     if (videoControls) videoControls.classList.add('hidden');
     if (subOverlayDiv) subOverlayDiv.classList.add('hidden');
     
-    // Subtitle upload dashboard disabled for iframes as requested
-    if (subtitleSection) subtitleSection.classList.add('disabled-opacity');
+    // Subtitle upload dashboard disabled/hidden for iframes as requested
+    if (subtitleSection) subtitleSection.classList.add('disabled-opacity', 'hidden');
 
     // Instantiation of the secure sandbox iframe
     iframeElement = document.createElement('iframe');
@@ -353,22 +393,92 @@ export function loadStream(url) {
     iframeElement.className = 'stream-iframe';
     iframeElement.allowFullscreen = true;
     iframeElement.setAttribute('referrerpolicy', 'no-referrer');
-    iframeElement.setAttribute('allow', 'autoplay; encrypted-media');
-    
-    // Trigger loader message
-    if (callbacks.onBuffering) callbacks.onBuffering({ buffering: true });
+    iframeElement.setAttribute('allow', 'autoplay; encrypted-media; fullscreen');
+
+    let isFrameLoaded = false;
 
     iframeElement.onload = () => {
+      if (isFrameLoaded) return;
+      isFrameLoaded = true;
       debugLog('Embed iframe loaded successfully.');
-      if (callbacks.onBuffering) callbacks.onBuffering({ buffering: false });
+      hideLoading();
     };
 
     iframeElement.onerror = () => {
+      if (isFrameLoaded) return;
+      isFrameLoaded = true;
       debugLog('Embed iframe loading failed.');
-      if (callbacks.onBuffering) callbacks.onBuffering({ buffering: false });
+      hideLoading();
       if (callbacks.onError) callbacks.onError(new Error(`Failed to load iframe url: ${url}`));
     };
+
+    // Safety Timeout Fallback: automatically dismiss spinner after 3.5s to prevent stuck overlay screen
+    setTimeout(() => {
+      if (!isFrameLoaded) {
+        debugLog('Safety timeout reached for iframe load. Dismissing loading overlay.');
+        isFrameLoaded = true;
+        hideLoading();
+      }
+    }, 3500);
 
     iframeContainer.appendChild(iframeElement);
   }
 }
+
+/**
+ * Clear/unload the current iframe and reset video elements
+ */
+export function clearPlayer() {
+  destroyHls();
+  if (mainVideoElement) {
+    mainVideoElement.pause();
+    mainVideoElement.removeAttribute('src');
+    mainVideoElement.load();
+  }
+  if (iframeElement) {
+    iframeElement.remove();
+    iframeElement = null;
+  }
+  if (iframeContainer) {
+    iframeContainer.innerHTML = '';
+  }
+  currentUrl = '';
+  hideLoading();
+  debugLog('Player cleared');
+}
+
+/**
+ * Reloads the current stream
+ */
+export function reloadStream() {
+  if (currentUrl) {
+    loadStream(currentUrl);
+  }
+}
+
+/**
+ * Set event callbacks
+ * @param {Object} handlers - Callback functions
+ */
+export function setCallbacks(handlers) {
+  callbacks = { ...callbacks, ...handlers };
+}
+
+// Bind to window for direct dev-tools debug console checks
+window.player = {
+  getCurrentUrl,
+  loadStream,
+  clearPlayer,
+  reloadStream,
+  setCallbacks,
+  initPlayer,
+  play,
+  pause,
+  seek,
+  setVolume,
+  setMuted,
+  togglePlay,
+  toggleFullscreen,
+  getPlayerState,
+  getVolumeState
+};
