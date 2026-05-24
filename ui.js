@@ -62,6 +62,25 @@ const centerPlayIndicator = doc('center-play-indicator');
 let isDraggingTimeline = false;
 let controlsTimeout = null;
 
+// Simulated Subtitle playback clock for Iframe Mode
+let simulatedTime = 0;
+let simulatedInterval = null;
+
+function startSimulatedSubtitles() {
+  if (simulatedInterval) clearInterval(simulatedInterval);
+  simulatedInterval = setInterval(() => {
+    simulatedTime += 0.1;
+    subtitles.renderCues(simulatedTime);
+  }, 100);
+}
+
+function stopSimulatedSubtitles() {
+  if (simulatedInterval) {
+    clearInterval(simulatedInterval);
+    simulatedInterval = null;
+  }
+}
+
 /**
  * Format a number of seconds into MM:SS or HH:MM:SS
  * @param {number} totalSeconds 
@@ -398,6 +417,10 @@ export function initUI() {
       e.preventDefault();
       hidePlaybackError();
 
+      // Reset simulated subtitle timer on new load
+      stopSimulatedSubtitles();
+      simulatedTime = 0;
+
       const type = document.querySelector('input[name="content-type"]:checked').value;
       const id = doc('content-id').value.trim();
 
@@ -486,6 +509,8 @@ export function initUI() {
     removeSubBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       subtitles.resetSubtitles();
+      stopSimulatedSubtitles();
+      simulatedTime = 0;
       
       subStatusBar?.classList.add('hidden');
       subUploadZone?.classList.remove('hidden');
@@ -506,6 +531,13 @@ export function initUI() {
   if (subToggle) {
     subToggle.addEventListener('change', (e) => {
       subtitles.setEnabled(e.target.checked);
+      if (mainVideo && mainVideo.classList.contains('hidden')) {
+        if (e.target.checked) {
+          startSimulatedSubtitles();
+        } else {
+          stopSimulatedSubtitles();
+        }
+      }
     });
   }
 
@@ -810,6 +842,12 @@ function handleSubtitleFileSelection(file) {
       toggleSyncButtons(false);
       updateSubtitleOffset(0.0);
       
+      // Start simulated subtitle playback timer if we are in iframe mode (video is hidden)
+      if (mainVideo && mainVideo.classList.contains('hidden')) {
+        simulatedTime = 0;
+        startSimulatedSubtitles();
+      }
+
       console.log(`Successfully loaded ${cues.length} subtitles cues from ${file.name}`);
 
     } catch (err) {

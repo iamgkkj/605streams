@@ -382,10 +382,10 @@ export function loadStream(url) {
     if (iframeContainer) iframeContainer.classList.remove('hidden');
     if (mainVideoElement) mainVideoElement.classList.add('hidden');
     if (videoControls) videoControls.classList.add('hidden');
-    if (subOverlayDiv) subOverlayDiv.classList.add('hidden');
     
-    // Subtitle upload dashboard disabled/hidden for iframes as requested
-    if (subtitleSection) subtitleSection.classList.add('disabled-opacity', 'hidden');
+    // Keep subtitles overlay and dashboard visible and active
+    if (subOverlayDiv) subOverlayDiv.classList.remove('hidden');
+    if (subtitleSection) subtitleSection.classList.remove('disabled-opacity', 'hidden');
 
     // Instantiation of the secure sandbox iframe
     iframeElement = document.createElement('iframe');
