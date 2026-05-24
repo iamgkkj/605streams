@@ -1,19 +1,21 @@
 # 111Movies Personal Streaming Client (605streams)
 
-A lightweight, zero-backend, high-performance web client designed to stream movies and TV shows from the 111Movies service. Built with premium glassmorphism visuals, smooth CSS layout animations, and manual subtitle synchronization shifting.
+A lightweight, zero-backend, high-performance web client designed to stream movies and TV shows from the 111Movies service. Built with premium glassmorphism visuals, smooth CSS layout animations, and secure iframe embedding.
 
 ---
 
 ## 🚀 Key Features
 
 * **Premium Visuals**: Dark-mode interface featuring CSS ambient background glows and fluid transitions.
-* **Smart Stream Loading**: Seamlessly parses TMDb (numeric) and IMDb (`tt...`) IDs, fetching direct streams from the API.
-* **Custom Video Player**: Custom-built HTML5 controls including giant playback activity indicators, precision volume bars, timeline buffering, and mouse-inactivity fading.
-* **Adaptive HLS.js Integration**: Automates live HLS playlist decoding (`.m3u8`) with native fallback (e.g., Safari, iOS).
+* **CORS-Free Architecture**: Bypasses browser connection policies and Cloudflare/NextJS exceptions by using direct iframe embedding from the working domain `https://111movies.com`.
+* **Hybrid Playback Engine**:
+  * **Embed Mode**: Renders standard movies and TV shows seamlessly using `https://111movies.com` frames with their high-fidelity native controls.
+  * **Direct Mode**: Activates during manual manifest URL overrides (`.m3u8`, `.mp4`). Reveals a fully featured HTML5/Hls.js player, precision timeline bars, buffering statistics, volume mixers, and subtitle overlays.
 * **Manual Subtitle Synchronizer**:
   * Parses `.srt` or `.vtt` files in pure JavaScript.
   * Real-time sync adjustment slider ($-10.0\text{s}$ to $+10.0\text{s}$) with $100\text{ms}$ precision.
   * Fully synced modified subtitle `.srt` file download.
+  * *Note*: Subtitles are supported on manual direct video streams.
 
 ---
 
@@ -21,7 +23,7 @@ A lightweight, zero-backend, high-performance web client designed to stream movi
 
 * **Structure & UI**: HTML5, Vanilla ES6 Modules (Zero bundlers, zero compilers, zero dependencies).
 * **Styling & Effects**: CSS Grid/Flexbox, dynamic media queries, keyframe spinners, glassmorphism filters.
-* **Playback Engine**: Standard HTML5 Media elements, `Hls.js` CDN.
+* **Playback Engine**: Secure iframe embeds and dynamic Hls.js components for manual streams.
 * **Subtitle Engine**: Custom in-memory cue indexing and parsing.
 
 ---
@@ -36,12 +38,9 @@ A lightweight, zero-backend, high-performance web client designed to stream movi
 
 2. **Open index.html**:
    * *Local Filesystem*: You can open `index.html` directly in a browser.
-   * *Streaming Support*: Due to browser security and CORS policies on local files (`file:///`), modern browsers block external HLS streams (`.m3u8`). **It is highly recommended to serve the app locally**:
+   * *Streaming Support*: To test manual streaming manifests and avoid origin protocol security constraints, it is highly recommended to serve the app locally:
      ```bash
-     # Using Node.js (npx)
-     npx http-server -p 8080
-     
-     # Or using Python 3
+     # Using Python 3
      python3 -m http.server 8080
      ```
      Then navigate to `http://localhost:8080` in your browser.
@@ -57,16 +56,16 @@ A lightweight, zero-backend, high-performance web client designed to stream movi
 2. **Streaming TV Shows**:
    * Select **TV Show** content type (this will expand the Episode selector).
    * Enter the series ID and specify the Season and Episode numbers.
-     * *Example (TV Show)*: Enter `240411` (or `tt30217403`), set Season `1`, Episode `5`, and click **Load Stream**.
-3. **Synchronizing Subtitles**:
-   * Drag and drop any `.srt` or `.vtt` file onto the dashed **Subtitle Dashboard** drop-zone.
-   * Use the **Sync Shift** slider or the incremental quick buttons (`-1.0s`, `-0.1s`, `+0.1s`, `+1.0s`) to adjust text synchronization.
-   * Toggle subtitle visibility on/off using the switch.
-   * If you've adjusted the timing, click **Download Sync'd Subtitles** to export your customized `.srt` file.
+     * *Example (Breaking Bad)*: Enter `tt0903747`, set Season `1`, Episode `1`, and click **Load Stream**.
+3. **Manual Stream Bypass**:
+   * Expand the **Manual Override** section.
+   * Paste any video URL (such as `.m3u8` playlists or `.mp4` video files).
+   * Click **Apply Override** to load the stream directly in the high-fidelity native player. Use the **Subtitle Dashboard** to upload local VTT/SRT subtitles and adjust text timing instantly!
 
 ---
 
 ## ⌨️ Keyboard Shortcuts
+*(Applicable during direct video playback)*
 
 | Shortcut | Action |
 | :--- | :--- |
@@ -82,9 +81,9 @@ A lightweight, zero-backend, high-performance web client designed to stream movi
 
 The code is strictly partitioned to avoid clutter and maintain low load times:
 1. **`app.js`**: App loader and bootstrap.
-2. **`ui.js`**: DOM element connector, custom video controls, and layout.
-3. **`api.js`**: Endpoint communication with 111movies.net.
-4. **`player.js`**: Video playback engine and Hls.js buffer.
+2. **`ui.js`**: DOM element connector, manual override panels, and loading displays.
+3. **`api.js`**: Endpoint builder returning TV and Movie embed URLs on `https://111movies.com`.
+4. **`player.js`**: Hybrid player engine managing iframes and Hls.js video assets.
 5. **`subtitles.js`**: Subtitle timing offset shifts, text compiler, and SRT parser.
 
 *For more details, see the complete [architecture.md](architecture.md) documentation.*
