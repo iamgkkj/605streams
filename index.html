@@ -184,6 +184,67 @@
             </div>
           </div>
         </section>
+
+        <!-- Manual Stream Override Dashboard -->
+        <section class="panel-section glass-card" id="override-config-card">
+          <h2 class="section-title">
+            <svg class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path>
+            </svg>
+            Manual Override
+          </h2>
+
+          <div class="override-controls">
+            <!-- Collapsible Trigger Header -->
+            <button type="button" class="collapse-trigger" id="override-toggle" aria-expanded="false">
+              <span>Bypass API Direct Stream</span>
+              <svg class="collapse-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </button>
+
+            <!-- Collapsible Content Panel -->
+            <div class="collapse-content hidden" id="override-content">
+              <!-- Warning box -->
+              <div class="warning-box">
+                <svg class="warning-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+                  <line x1="12" y1="9" x2="12" y2="13"></line>
+                  <line x1="12" y1="17" x2="12.01" y2="17"></line>
+                </svg>
+                <span>Bypassing the API directly links your browser to the video stream feed.</span>
+              </div>
+
+              <!-- Input Group -->
+              <div class="input-field">
+                <label for="manual-stream-url">Stream Manifest URL (.m3u8, .mp4)</label>
+                <div class="input-wrapper">
+                  <input type="text" id="manual-stream-url" placeholder="e.g. https://domain.com/feed.m3u8" autocomplete="off">
+                </div>
+              </div>
+
+              <!-- Status Messages Area -->
+              <div class="override-status hidden" id="override-status-msg"></div>
+
+              <!-- Actions Group -->
+              <div class="override-actions">
+                <button type="button" class="btn btn-primary btn-sm" id="load-manual-btn">Apply Override</button>
+                <button type="button" class="btn btn-secondary btn-sm" id="clear-manual-btn">Clear Override</button>
+              </div>
+
+              <!-- Help Text Dropdown -->
+              <details class="help-text-details">
+                <summary>How to find direct stream URLs?</summary>
+                <div class="details-content">
+                  <p>1. Open 111movies.net in a browser tab and load the movie/show.</p>
+                  <p>2. Right-click anywhere and select <strong>Inspect</strong> (or press F12) to open Developer Tools.</p>
+                  <p>3. Go to the <strong>Network</strong> tab and filter by <code>m3u8</code> or <code>mp4</code>.</p>
+                  <p>4. Play the video, look for requests starting with <code>master.m3u8</code> or containing <code>.mp4</code>, copy the link, and paste it here.</p>
+                </div>
+              </details>
+            </div>
+          </div>
+        </section>
       </aside>
 
       <!-- Video Display Area (Main) -->

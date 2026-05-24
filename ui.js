@@ -6,6 +6,9 @@ import * as api from './api.js';
 import * as player from './player.js';
 import * as subtitles from './subtitles.js';
 
+// Auto-inject diagnostic debugger tools for developer consoles
+import './api-debug.js';
+
 // DOM Selectors
 const doc = (id) => document.getElementById(id);
 
@@ -17,7 +20,6 @@ const statusText = doc('connection-status');
 const streamForm = doc('stream-form');
 const tvFields = doc('tv-fields');
 const loadBtn = doc('load-btn');
-const dismissErrorBtn = doc('dismiss-error-btn');
 
 // Subtitles elements
 const subUploadZone = doc('sub-upload-zone');
@@ -59,7 +61,6 @@ const centerPlayIndicator = doc('center-play-indicator');
 // Global UI State
 let isDraggingTimeline = false;
 let controlsTimeout = null;
-let currentSubtitleFilename = '';
 
 /**
  * Format a number of seconds into MM:SS or HH:MM:SS
@@ -119,14 +120,107 @@ function hideSpinner() {
 }
 
 /**
- * Shows the playback error panel inside the player
- * @param {string} message 
+ * Shows a beautiful high-fidelity diagnostic error card based on failure type.
+ * @param {Error} error - The consolidated Error object thrown by the API
  */
-function showPlaybackError(message) {
+function showPlaybackError(error) {
   hideSpinner();
   setStatus('error', 'Failed');
+
+  let errorTitle = 'Playback Error';
+  let message = typeof error === 'string' ? error : error.message;
+  let suggestionHtml = '';
+
+  // Apply diagnostic categorizations
+  if (error && typeof error === 'object') {
+    if (error.type === 'CF_CAPTCHA') {
+      errorTitle = 'Security Captcha Triggered';
+      suggestionHtml = `
+        <div class="error-suggestion">
+          <p><strong>Required Action:</strong> 111Movies request blocked by Cloudflare verification.</p>
+          <ol>
+            <li>Open <a href="https://111movies.net" target="_blank" class="error-link">111movies.net</a> in another browser tab.</li>
+            <li>Pass the Cloudflare CAPTCHA challenge.</li>
+            <li>Return here and re-submit the <strong>Load Stream</strong> query.</li>
+          </ol>
+        </div>
+      `;
+    } else if (error.type === 'APP_ERROR') {
+      errorTitle = 'Stream Temporarily Broken';
+      const currentId = doc('content-id')?.value?.trim() || '';
+      const toggledId = currentId.startsWith('tt') ? currentId.slice(2) : 'tt' + currentId;
+      suggestionHtml = `
+        <div class="error-suggestion">
+          <p><strong>Troubleshooting Options:</strong> The service returned a client-side crash error for this ID.</p>
+          <div class="error-actions">
+            <button type="button" class="btn btn-secondary btn-sm btn-full" id="btn-quick-swap-id" data-swap-id="${toggledId}">
+              Try Swapping ID format: "${toggledId}"
+            </button>
+            <p class="subtext">Or paste a direct stream URL into the <strong>Manual Override</strong> panel below.</p>
+          </div>
+        </div>
+      `;
+    } else if (error.type === 'NOT_FOUND') {
+      errorTitle = 'Video Not Found (404)';
+      suggestionHtml = `
+        <div class="error-suggestion">
+          <p><strong>Troubleshooting Options:</strong> The content was not located on the streaming server database.</p>
+          <ol>
+            <li>Check ID spelling on IMDb/TMDb.</li>
+            <li>Try adding or removing the "tt" prefix.</li>
+            <li>Verify if the show is available directly on 111movies.net.</li>
+          </ol>
+        </div>
+      `;
+    } else if (error.type === 'FETCH_FAILED') {
+      errorTitle = 'Network Blocks / CORS Blocking';
+      suggestionHtml = `
+        <div class="error-suggestion">
+          <p><strong>Troubleshooting Options:</strong> Browser failed to fetch the streaming manifest directly due to security policies.</p>
+          <ol>
+            <li>Run a local static server to resolve local files policy (e.g. <code>python3 -m http.server 8080</code>).</li>
+            <li>Clear browser cache and retry.</li>
+            <li>Manually find and paste the streaming URL directly below.</li>
+          </ol>
+        </div>
+      `;
+    }
+  }
+
+  // Populate overlay screen
   if (errorOverlay && errorMsg) {
-    errorMsg.textContent = message;
+    const errorContainer = errorOverlay.querySelector('.error-container');
+    if (errorContainer) {
+      errorContainer.innerHTML = `
+        <div class="error-icon-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+            <line x1="12" y1="9" x2="12" y2="13"></line>
+            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+          </svg>
+        </div>
+        <h3 class="error-title">${errorTitle}</h3>
+        <p class="error-message">${message}</p>
+        ${suggestionHtml}
+        <button class="btn btn-secondary btn-sm" id="dismiss-error-btn">Dismiss</button>
+      `;
+
+      // Re-bind dismiss action
+      doc('dismiss-error-btn')?.addEventListener('click', hidePlaybackError);
+
+      // Re-bind quick ID swap trigger
+      const swapBtn = doc('btn-quick-swap-id');
+      if (swapBtn) {
+        swapBtn.addEventListener('click', (e) => {
+          const newId = e.currentTarget.getAttribute('data-swap-id');
+          if (doc('content-id')) {
+            doc('content-id').value = newId;
+            hidePlaybackError();
+            streamForm.dispatchEvent(new Event('submit'));
+          }
+        });
+      }
+    }
     errorOverlay.classList.remove('hidden');
   }
 }
@@ -147,7 +241,6 @@ function hidePlaybackError() {
 function flashCenterIndicator(type) {
   if (!centerPlayIndicator) return;
   
-  // Set correct SVG path inside
   if (type === 'play') {
     centerPlayIndicator.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>';
   } else {
@@ -155,8 +248,7 @@ function flashCenterIndicator(type) {
   }
   
   centerPlayIndicator.classList.remove('flash');
-  // Trigger DOM reflow to restart animation
-  void centerPlayIndicator.offsetWidth;
+  void centerPlayIndicator.offsetWidth; // Force Reflow
   centerPlayIndicator.classList.add('flash');
 }
 
@@ -174,7 +266,6 @@ function showControls() {
   }
   
   const playerState = player.getPlayerState();
-  // Only hide controls if the stream is actively playing
   if (!playerState.paused) {
     controlsTimeout = setTimeout(() => {
       videoContainer.classList.add('controls-hide');
@@ -190,10 +281,8 @@ export function initUI() {
   // 1. Initialize Player and Subtitle sub-modules
   player.initPlayer(mainVideo, {
     onTimeUpdate: ({ currentTime, duration }) => {
-      // 1.1 Render subtitles for current time frame
       subtitles.renderCues(currentTime);
 
-      // 1.2 Update custom video progress bar (if not user scrubbing)
       if (!isDraggingTimeline) {
         const pct = duration > 0 ? (currentTime / duration) * 100 : 0;
         if (timeline) {
@@ -224,7 +313,6 @@ export function initUI() {
     onStateChange: ({ playing }) => {
       showControls();
       
-      // Update play/pause buttons
       const iconPlay = ctrlPlayPause?.querySelector('.icon-play');
       const iconPause = ctrlPlayPause?.querySelector('.icon-pause');
       
@@ -265,8 +353,8 @@ export function initUI() {
       }
     },
 
-    onError: ({ message }) => {
-      showPlaybackError(message);
+    onError: (err) => {
+      showPlaybackError(err);
     }
   });
 
@@ -276,13 +364,11 @@ export function initUI() {
   const contentTypes = document.querySelectorAll('input[name="content-type"]');
   contentTypes.forEach(radio => {
     radio.addEventListener('change', (e) => {
-      // Toggle CSS active state class for visual styling
       document.querySelectorAll('.toggle-option').forEach(opt => {
         opt.classList.remove('active');
       });
       e.target.parentElement.classList.add('active');
 
-      // Expand TV fields smoothly
       if (e.target.value === 'tv') {
         tvFields?.classList.add('show');
         doc('tv-season')?.setAttribute('required', 'true');
@@ -304,6 +390,22 @@ export function initUI() {
       const type = document.querySelector('input[name="content-type"]:checked').value;
       const id = doc('content-id').value.trim();
 
+      const manualUrl = api.getManualStreamUrl();
+      if (manualUrl) {
+        api.debugLog('Manual override URL is active. Triggering direct override play.', manualUrl);
+        showSpinner('Loading manual override stream...');
+        setStatus('loading', 'Loading override...');
+        try {
+          player.loadStream(manualUrl);
+          player.play();
+          setStatus('ready', 'Manual override stream loaded');
+          return;
+        } catch (err) {
+          showPlaybackError(err);
+          return;
+        }
+      }
+
       showSpinner(`Connecting to 111Movies for ${type === 'movie' ? 'movie' : 'episode'} stream...`);
       setStatus('loading', 'Fetching stream...');
 
@@ -317,18 +419,14 @@ export function initUI() {
           streamUrl = await api.fetchTvStream(id, season, episode);
         }
 
-        console.log('Stream URL resolved:', streamUrl);
+        api.debugLog('Stream URL resolved:', streamUrl);
         
-        // Load stream in player
         player.loadStream(streamUrl);
-        
-        // Auto play on load
         player.play();
-        
         setStatus('ready', 'Stream loaded');
 
       } catch (error) {
-        showPlaybackError(error.message);
+        showPlaybackError(error);
       }
     });
   }
@@ -339,13 +437,11 @@ export function initUI() {
   }
 
   // 4. Subtitle Dashboard logic
-  // Trigger file browser on click
   if (subUploadZone) {
     subUploadZone.addEventListener('click', () => {
       subFileInput?.click();
     });
 
-    // Drag over highlights
     subUploadZone.addEventListener('dragover', (e) => {
       e.preventDefault();
       subUploadZone.classList.add('dragover');
@@ -375,33 +471,27 @@ export function initUI() {
     });
   }
 
-  // Remove uploaded subtitles
   if (removeSubBtn) {
     removeSubBtn.addEventListener('click', (e) => {
-      e.stopPropagation(); // Avoid triggering click upload zone
+      e.stopPropagation();
       subtitles.resetSubtitles();
       
-      // Update UI panels
       subStatusBar?.classList.add('hidden');
       subUploadZone?.classList.remove('hidden');
       subSettingsPanel?.classList.add('disabled-opacity');
       
-      // Disable inputs
       subToggle?.setAttribute('disabled', 'true');
       offsetSlider?.setAttribute('disabled', 'true');
       downloadSubBtn?.setAttribute('disabled', 'true');
       
-      // Disable sync buttons
       toggleSyncButtons(true);
       
-      // Reset sliders
       if (offsetSlider) offsetSlider.value = 0;
       if (offsetDisplay) offsetDisplay.textContent = '0.0s';
       if (subFileInput) subFileInput.value = '';
     });
   }
 
-  // Subtitle synchronization changes
   if (subToggle) {
     subToggle.addEventListener('change', (e) => {
       subtitles.setEnabled(e.target.checked);
@@ -415,14 +505,12 @@ export function initUI() {
     });
   }
 
-  // Quick adjust subtitle buttons
   doc('btn-sub-minus-1')?.addEventListener('click', () => adjustOffsetByDelta(-1.0));
   doc('btn-sub-minus-01')?.addEventListener('click', () => adjustOffsetByDelta(-0.1));
   doc('btn-sub-reset')?.addEventListener('click', () => updateSubtitleOffset(0.0));
   doc('btn-sub-plus-01')?.addEventListener('click', () => adjustOffsetByDelta(0.1));
   doc('btn-sub-plus-1')?.addEventListener('click', () => adjustOffsetByDelta(1.0));
 
-  // Export Sync'd Subtitles
   if (downloadSubBtn) {
     downloadSubBtn.addEventListener('click', () => {
       subtitles.downloadSubtitle();
@@ -438,14 +526,12 @@ export function initUI() {
     });
   }
 
-  // Seek Progress Slider bar interaction
   if (timeline) {
     timeline.addEventListener('input', (e) => {
       isDraggingTimeline = true;
       const pct = parseFloat(e.target.value);
       const state = player.getPlayerState();
       
-      // Update visual timeline bar instantly before video seeks
       if (timelineProgress) {
         timelineProgress.style.width = `${pct}%`;
       }
@@ -464,7 +550,6 @@ export function initUI() {
     });
   }
 
-  // Volume bindings
   if (ctrlMute) {
     ctrlMute.addEventListener('click', () => {
       const state = player.getVolumeState();
@@ -479,16 +564,6 @@ export function initUI() {
     });
   }
 
-  // Volume UI updates
-  player.initPlayer(mainVideo, {
-    // Note: Re-binding in initPlayer was already performed. Let's register volume state triggers
-  });
-  
-  // Custom video controller volume update responder
-  const originalInit = player.initPlayer;
-  // (We handle volume updates smoothly inside player callbacks now!)
-
-  // Skip buttons
   if (ctrlSkipBack) {
     ctrlSkipBack.addEventListener('click', () => {
       const state = player.getPlayerState();
@@ -503,48 +578,142 @@ export function initUI() {
     });
   }
 
-  // Fullscreen Button toggle
   if (ctrlFullscreen) {
     ctrlFullscreen.addEventListener('click', () => {
       player.toggleFullscreen(videoContainer);
     });
   }
 
-  // Click on Video Canvas directly toggles play/pause
   if (mainVideo) {
     mainVideo.addEventListener('click', (e) => {
-      // Prevent clicking video from toggling fullscreen double click
       e.preventDefault();
       const state = player.getPlayerState();
       player.togglePlay();
       flashCenterIndicator(state.paused ? 'play' : 'pause');
     });
 
-    // Double-click on Video Container toggles Fullscreen
     mainVideo.addEventListener('dblclick', () => {
       player.toggleFullscreen(videoContainer);
     });
   }
 
-  // Mouse hover activity monitoring for hiding custom control panel
   if (videoContainer) {
     videoContainer.addEventListener('mousemove', showControls);
     videoContainer.addEventListener('mouseleave', () => {
       const state = player.getPlayerState();
-      // Instantly hide on mouseleave if playing
       if (!state.paused) {
         if (controlsTimeout) clearTimeout(controlsTimeout);
         videoContainer.classList.add('controls-hide');
         videoContainer.classList.remove('controls-active');
       }
     });
-    
-    // Touch controls helper for mobile support
     videoContainer.addEventListener('touchstart', showControls);
   }
 
-  // Custom keyboard event bindings
   window.addEventListener('keydown', handleKeyboardShortcuts);
+
+  // 6. Dedicated Collapsible Manual Override Card event bindings
+  const overrideToggle = doc('override-toggle');
+  const overrideContent = doc('override-content');
+  const loadManualBtn = doc('load-manual-btn');
+  const clearManualBtn = doc('clear-manual-btn');
+  const manualStreamUrl = doc('manual-stream-url');
+  const overrideStatusMsg = doc('override-status-msg');
+
+  // Toggle Collapse panel
+  if (overrideToggle && overrideContent) {
+    overrideToggle.addEventListener('click', () => {
+      const isExpanded = overrideToggle.getAttribute('aria-expanded') === 'true';
+      overrideToggle.setAttribute('aria-expanded', !isExpanded);
+      if (isExpanded) {
+        overrideContent.classList.add('hidden');
+      } else {
+        overrideContent.classList.remove('hidden');
+      }
+    });
+  }
+
+  /**
+   * Updates status messages within the manual override panel
+   * @param {'success'|'error'|'clear'} type 
+   * @param {string} [message] 
+   */
+  function setOverrideStatus(type, message) {
+    if (!overrideStatusMsg) return;
+    overrideStatusMsg.className = 'override-status'; // reset
+    
+    if (type === 'success') {
+      overrideStatusMsg.classList.add('success');
+      overrideStatusMsg.textContent = message;
+      overrideStatusMsg.classList.remove('hidden');
+    } else if (type === 'error') {
+      overrideStatusMsg.classList.add('error');
+      overrideStatusMsg.textContent = message;
+      overrideStatusMsg.classList.remove('hidden');
+    } else {
+      overrideStatusMsg.classList.add('hidden');
+    }
+  }
+
+  // Load manual stream (Apply Override)
+  if (loadManualBtn && manualStreamUrl) {
+    loadManualBtn.addEventListener('click', () => {
+      const url = manualStreamUrl.value.trim();
+      if (!url) {
+        setOverrideStatus('error', 'Please paste a valid video URL first.');
+        return;
+      }
+
+      try {
+        // Configure in API module
+        api.setManualStreamUrl(url);
+        setOverrideStatus('success', 'Manual override applied successfully! System will bypass standard API loading.');
+        
+        // Clear old visual playback errors
+        hidePlaybackError();
+
+        // Smoothly collapse panel
+        overrideToggle?.setAttribute('aria-expanded', 'false');
+        overrideContent?.classList.add('hidden');
+
+        // Automatically reload content into the Hls.js player
+        if (streamForm) {
+          streamForm.dispatchEvent(new Event('submit'));
+        }
+      } catch (err) {
+        setOverrideStatus('error', `Failed to apply override: ${err.message}`);
+      }
+    });
+  }
+
+  // Clear manual stream
+  if (clearManualBtn && manualStreamUrl) {
+    clearManualBtn.addEventListener('click', () => {
+      try {
+        api.clearManualStreamUrl();
+        manualStreamUrl.value = '';
+        setOverrideStatus('success', 'Manual override cleared. System will query 111Movies API.');
+
+        // Hide playback errors
+        hidePlaybackError();
+
+        // If an ID is present in standard input, automatically trigger reload
+        const currentId = doc('content-id')?.value?.trim();
+        if (currentId && streamForm) {
+          streamForm.dispatchEvent(new Event('submit'));
+        }
+      } catch (err) {
+        setOverrideStatus('error', `Failed to clear override: ${err.message}`);
+      }
+    });
+  }
+
+  // Check if there is an active session override URL on load and sync inputs
+  const cachedUrl = api.getManualStreamUrl();
+  if (cachedUrl && manualStreamUrl) {
+    manualStreamUrl.value = cachedUrl;
+    setOverrideStatus('success', 'Active session override URL loaded.');
+  }
 }
 
 /**
@@ -552,17 +721,15 @@ export function initUI() {
  * @param {KeyboardEvent} e 
  */
 function handleKeyboardShortcuts(e) {
-  // Ignore keys if user is typing in form inputs
   if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') {
     return;
   }
 
-  const key = e.key.toLowerCase();
   const state = player.getPlayerState();
   const volState = player.getVolumeState();
 
   switch (e.key) {
-    case ' ': // Space key
+    case ' ':
       e.preventDefault();
       player.togglePlay();
       flashCenterIndicator(state.paused ? 'play' : 'pause');
@@ -616,12 +783,10 @@ function handleSubtitleFileSelection(file) {
     try {
       const cues = subtitles.parseSubtitleFile(text, file.name);
       
-      // Update UI bar
       if (loadedSubName) loadedSubName.textContent = file.name;
       subUploadZone?.classList.add('hidden');
       subStatusBar?.classList.remove('hidden');
       
-      // Enable settings inputs
       subSettingsPanel?.classList.remove('disabled-opacity');
       
       subToggle?.removeAttribute('disabled');
@@ -632,8 +797,6 @@ function handleSubtitleFileSelection(file) {
       downloadSubBtn?.removeAttribute('disabled');
       
       toggleSyncButtons(false);
-      
-      // Set to 0 initial offset
       updateSubtitleOffset(0.0);
       
       console.log(`Successfully loaded ${cues.length} subtitles cues from ${file.name}`);
@@ -672,7 +835,7 @@ function toggleSyncButtons(disabled) {
  */
 function updateSubtitleOffset(offsetSec) {
   const boundedOffset = Math.max(-10, Math.min(10, offsetSec));
-  const rounded = Math.round(boundedOffset * 10) / 10; // 100ms precision limit
+  const rounded = Math.round(boundedOffset * 10) / 10;
 
   subtitles.setOffset(rounded);
   
@@ -695,23 +858,15 @@ function adjustOffsetByDelta(delta) {
   updateSubtitleOffset(subState.offset + delta);
 }
 
-// Subscribe to volume updates from Player events specifically
-// To sync the sound sliders and visual volume mute indicators
+// Subscribe to volume changes from Player events specifically
 window.addEventListener('load', () => {
-  player.initPlayer(mainVideo, {
-    // This handles redundant initialization safety
-  });
-  
-  // Custom observer to link Volume changes to Controls
   mainVideo.addEventListener('volumechange', () => {
     const volState = player.getVolumeState();
     
-    // Sync slider value
     if (ctrlVolumeSlider) {
       ctrlVolumeSlider.value = volState.muted ? 0 : volState.volume;
     }
     
-    // Sync Mute Icons
     const iconHigh = ctrlMute?.querySelector('.icon-vol-high');
     const iconMute = ctrlMute?.querySelector('.icon-vol-mute');
 
