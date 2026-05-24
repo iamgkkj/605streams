@@ -472,7 +472,8 @@ export function initUI() {
 
   // 4. Subtitle Dashboard logic
   if (subUploadZone) {
-    subUploadZone.addEventListener('click', () => {
+    subUploadZone.addEventListener('click', (e) => {
+      if (e.target === subFileInput) return;
       subFileInput?.click();
     });
 
