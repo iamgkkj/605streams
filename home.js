@@ -160,7 +160,7 @@ function renderSearchDropdown(results, type) {
                  data-year="${year}" 
                  data-rating="${rating}"
                  data-poster="${item.poster_path || ''}">
-                ${poster ? `<img src="${poster}" alt="">` : '<div class="dropdown-poster-placeholder">🎬</div>'}
+                ${poster ? `<img src="${poster}" alt="" onerror="handleImageLoadError(this, '${escapeHtml(title)}')">` : '<div class="dropdown-poster-placeholder">🎬</div>'}
                 <div class="dropdown-info">
                     <div class="dropdown-title">${escapeHtml(title)}</div>
                     <div class="dropdown-year">${year} • ⭐ ${rating}</div>
@@ -265,7 +265,7 @@ function renderContentGrid(items, type, container) {
                  data-year="${year}" 
                  data-rating="${rating}"
                  data-poster="${posterValue || ''}">
-                ${poster ? `<img src="${poster}" alt="${escapeHtml(title)}" class="content-poster" loading="lazy">` : '<div class="content-poster placeholder">🎬</div>'}
+                ${poster ? `<img src="${poster}" alt="${escapeHtml(title)}" class="content-poster" loading="lazy" onerror="handleImageLoadError(this, '${escapeHtml(title)}')">` : '<div class="content-poster placeholder">🎬</div>'}
                 <div class="content-info">
                     <div class="content-title">${escapeHtml(title)}</div>
                     <div class="content-meta">${year} • ⭐ ${rating}</div>
@@ -336,6 +336,45 @@ function loadRecentlyViewed() {
 }
 
 function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/[&<>'"]/g, (m) => {
+        if (m === '&') return '&amp;';
+        if (m === '<') return '&lt;';
+        if (m === '>') return '&gt;';
+        if (m === '"') return '&quot;';
+        if (m === "'") return '&#039;';
+        return m;
+    });
+}
+
+/**
+ * Globally registered image error handler to construct gorgeous linear gradient SVG fallback posters
+ */
+window.handleImageLoadError = function(img, title) {
+    img.onerror = null; // Prevent recursion loops
+    const hash = Array.from(title).reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    const hue1 = hash % 360;
+    const hue2 = (hash + 75) % 360;
+    
+    const svg = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 300" width="100%" height="100%">
+            <defs>
+                <linearGradient id="grad_${hash}" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stop-color="hsl(${hue1}, 80%, 28%)"/>
+                    <stop offset="100%" stop-color="hsl(${hue2}, 85%, 12%)"/>
+                </linearGradient>
+            </defs>
+            <rect width="200" height="300" fill="url(#grad_${hash})" rx="12"/>
+            <circle cx="100" cy="115" r="32" fill="rgba(255,255,255,0.07)"/>
+            <text x="100" y="126" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="32" fill="rgba(255,255,255,0.25)" text-anchor="middle">🎬</text>
+            <text x="100" y="215" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="14" font-weight="bold" fill="rgba(255,255,255,0.92)" text-anchor="middle">${escapeSvg(title)}</text>
+        </svg>
+    `;
+    
+    img.src = `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+};
+
+function escapeSvg(str) {
     if (!str) return '';
     return str.replace(/[&<>'"]/g, (m) => {
         if (m === '&') return '&amp;';
