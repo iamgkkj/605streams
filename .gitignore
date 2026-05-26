@@ -45,3 +45,6 @@ build/
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+
+# Private Keys & Credentials Config
+config.js

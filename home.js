@@ -74,16 +74,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
-    // 3. Trending media category tabs
-    document.querySelectorAll('.trending-tab').forEach(tab => {
-        tab.addEventListener('click', () => {
-            document.querySelectorAll('.trending-tab').forEach(t => t.classList.remove('active'));
-            tab.classList.add('active');
-            loadTrending(tab.dataset.trend);
-        });
-    });
-    
-    // 4. Advanced ID bypass link
+    // 3. Advanced ID bypass link
     const advancedLink = document.getElementById('advanced-mode-link');
     if (advancedLink) {
         advancedLink.addEventListener('click', () => {
@@ -92,14 +83,21 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
     
-    // 5. Populate initial grids
-    loadTrending('movie');
+    // 4. Populate initial grids (Unified Search/Recommendations Filter)
+    loadTrending(currentSearchType);
     loadRecentlyViewed();
 });
 
 function triggerAutoSearch() {
-    if (searchInput && searchInput.value.trim().length >= 2) {
-        onSearchInput({ target: searchInput });
+    const query = searchInput ? searchInput.value.trim() : '';
+    if (query.length >= 2) {
+        performSearch();
+    } else {
+        // If empty/cleared, automatically reload unified trending content
+        loadTrending(currentSearchType);
+        // Restore trending section header
+        const sectionHeader = document.querySelector('.trending-section .section-header h2');
+        if (sectionHeader) sectionHeader.innerHTML = '🔥 Trending Now';
     }
 }
 
@@ -115,10 +113,8 @@ async function onSearchInput(e) {
         const sectionHeader = document.querySelector('.trending-section .section-header h2');
         if (sectionHeader) sectionHeader.innerHTML = '🔥 Trending Now';
         
-        // Load active trending category tab
-        const activeTab = document.querySelector('.trending-tab.active');
-        const trendType = activeTab ? activeTab.dataset.trend : 'movie';
-        loadTrending(trendType);
+        // Load active trending category matching the unified filter type
+        loadTrending(currentSearchType);
         return;
     }
     

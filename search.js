@@ -16,6 +16,22 @@ const DEFAULT_KEYS = [
   '450ca37332c0280eb4c2f82ba6918804'  // Key 6
 ];
 
+// Active keys pool
+let activeKeys = [...DEFAULT_KEYS];
+
+// Load local private credentials securely if available
+import('./config.js')
+  .then(config => {
+    if (config.TMDB_API_KEY && config.TMDB_API_KEY.trim().length > 5) {
+      console.info('Loaded private TMDB credentials securely from config.js');
+      // Prepend the user's custom API key to the very front of the active pool
+      activeKeys.unshift(config.TMDB_API_KEY.trim());
+    }
+  })
+  .catch(e => {
+    // Graceful ignore if config.js does not exist
+  });
+
 // Offline High-Fidelity Static Mock Databases for sandbox/no-internet environments
 const STATIC_TRENDING_MOVIES = [
   {
@@ -157,6 +173,9 @@ async function fetchWithTimeout(resource, options = {}) {
   }
 }
 
+// Global network cache status flag to trigger fast-fail offline modes
+let isTmdOffline = false;
+
 /**
  * Resilient fetch wrapper with automatic API key rotation and timeout rules
  * @param {string} endpoint - API path (e.g. 'search/movie')
@@ -164,34 +183,55 @@ async function fetchWithTimeout(resource, options = {}) {
  * @returns {Promise<Object>}
  */
 async function fetchWithKeyRotation(endpoint, queryParams = {}) {
+  // If we have already detected that TMDB is offline or blocked, fail fast to avoid massive timeouts!
+  if (isTmdOffline) {
+    throw new Error('TMDB is offline (fast-fallback mode active).');
+  }
+
   // 1. Try user custom key from localStorage first if provided
   const customKey = localStorage.getItem('605streams_tmdb_key');
   if (customKey && customKey.trim().length > 5) {
     const url = buildUrl(endpoint, customKey.trim(), queryParams);
     try {
-      const response = await fetchWithTimeout(url, { timeout: 1500 });
+      const response = await fetchWithTimeout(url, { timeout: 1200 });
       if (response.ok) return await response.json();
       console.warn(`Custom TMDB key failed with status: ${response.status}`);
     } catch (e) {
       console.warn('Custom TMDB key fetch error:', e);
+      if (e instanceof TypeError || e.message?.includes('Failed to fetch')) {
+        isTmdOffline = true;
+      }
     }
   }
 
-  // 2. Iterate through our stable fallbacks
-  for (let i = 0; i < DEFAULT_KEYS.length; i++) {
-    const key = DEFAULT_KEYS[i];
+  // 2. Iterate through our active keys pool
+  // Try up to 3 keys max to prevent huge lag if all keys are completely firewalled
+  const maxRetries = Math.min(activeKeys.length, 3);
+  for (let i = 0; i < maxRetries; i++) {
+    const key = activeKeys[i];
     const url = buildUrl(endpoint, key, queryParams);
     try {
-      const response = await fetchWithTimeout(url, { timeout: 1500 });
+      const response = await fetchWithTimeout(url, { timeout: 1200 });
       if (response.ok) {
+        // Successfully reached TMDB! Reset offline state if it was set
+        isTmdOffline = false;
         return await response.json();
       }
-      console.warn(`Fallback TMDB key [${i + 1}/${DEFAULT_KEYS.length}] failed: ${response.status}`);
+      console.warn(`TMDB key fallback [${i + 1}/${maxRetries}] failed: ${response.status}`);
     } catch (e) {
-      console.warn(`Fallback TMDB key [${i + 1}/${DEFAULT_KEYS.length}] error:`, e);
+      console.warn(`TMDB key fallback [${i + 1}/${maxRetries}] error:`, e);
+      
+      // If we hit a standard offline error (TypeError, Failed to fetch, DNS failure), trigger instant fast-fallback!
+      if (e instanceof TypeError || e.message?.includes('Failed to fetch')) {
+        isTmdOffline = true;
+        console.warn('Instant offline network block detected. Fast-fallback activated.');
+        break;
+      }
     }
   }
 
+  // If we looped through retries and they all timed out/failed, flag TMDB as offline
+  isTmdOffline = true;
   throw new Error('All TMDB API key fallbacks failed or were rate-limited.');
 }
 

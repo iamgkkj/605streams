@@ -1,0 +1,8 @@
+/**
+ * config.js.example - Template for private configuration
+ * Rename this file to config.js and add your private TMDb credentials.
+ * config.js is automatically ignored by Git to keep your keys secure!
+ */
+
+export const TMDB_API_KEY = "";
+export const TMDB_READ_TOKEN = "";
