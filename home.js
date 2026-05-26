@@ -19,6 +19,29 @@ let searchTimeout = null;
 document.addEventListener('DOMContentLoaded', () => {
     console.log('605streams Home Page initialized');
     
+    // Bind Adblocker Warning Modal Popup
+    const adblockModal = document.getElementById('adblock-modal');
+    const adblockDismissBtn = document.getElementById('adblock-dismiss-btn');
+    
+    if (adblockModal && adblockDismissBtn) {
+        // Show warning popup only if not already dismissed in this browser session
+        const isDismissed = localStorage.getItem('605streams_adblock_warning_dismissed');
+        if (!isDismissed) {
+            adblockModal.classList.remove('hidden');
+            setTimeout(() => {
+                adblockModal.classList.add('active');
+            }, 50);
+        }
+        
+        adblockDismissBtn.addEventListener('click', () => {
+            adblockModal.classList.remove('active');
+            localStorage.setItem('605streams_adblock_warning_dismissed', 'true');
+            setTimeout(() => {
+                adblockModal.classList.add('hidden');
+            }, 400);
+        });
+    }
+    
     // Resolve selectors
     searchInput = document.getElementById('home-search');
     searchBtn = document.getElementById('home-search-btn');
