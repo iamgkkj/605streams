@@ -9,54 +9,45 @@ import * as subtitles from './subtitles.js';
 // Auto-inject diagnostic debugger tools for developer consoles
 import './api-debug.js';
 
-// DOM Selectors
+// DOM Element References (Initialized dynamically in initUI to prevent timing issues)
 const doc = (id) => document.getElementById(id);
 
-// Connection Status
-const statusDot = doc('connection-status')?.previousElementSibling;
-const statusText = doc('connection-status');
-
-// Form and Stream Loading
-const streamForm = doc('stream-form');
-const tvFields = doc('tv-fields');
-const loadBtn = doc('load-btn');
-
-// Subtitles elements
-const subUploadZone = doc('sub-upload-zone');
-const subFileInput = doc('sub-file-input');
-const subStatusBar = doc('sub-status-bar');
-const loadedSubName = doc('loaded-sub-name');
-const removeSubBtn = doc('remove-sub-btn');
-const subSettingsPanel = doc('sub-settings-panel');
-const subToggle = doc('sub-toggle');
-const offsetSlider = doc('offset-slider');
-const offsetDisplay = doc('offset-display');
-const downloadSubBtn = doc('download-sub-btn');
-
-// Video wrappers and screens
-const videoContainer = doc('video-container');
-const mainVideo = doc('main-video');
-const subOverlayDiv = doc('sub-overlay-div');
-const subTextSpan = doc('sub-text-span');
-const loadingOverlay = doc('loading-overlay');
-const loadingMsg = doc('loading-msg');
-const errorOverlay = doc('error-overlay');
-const errorMsg = doc('error-msg');
-
-// Custom video player controls
-const videoControls = doc('video-controls');
-const timeline = doc('timeline');
-const timelineProgress = doc('timeline-progress');
-const timelineBuffer = doc('timeline-buffer');
-const ctrlPlayPause = doc('ctrl-play-pause');
-const ctrlMute = doc('ctrl-mute');
-const ctrlVolumeSlider = doc('ctrl-volume-slider');
-const timeCurrent = doc('time-current');
-const timeDuration = doc('time-duration');
-const ctrlSkipBack = doc('ctrl-skip-back');
-const ctrlSkipForward = doc('ctrl-skip-forward');
-const ctrlFullscreen = doc('ctrl-fullscreen');
-const centerPlayIndicator = doc('center-play-indicator');
+let statusDot = null;
+let statusText = null;
+let streamForm = null;
+let tvFields = null;
+let loadBtn = null;
+let subUploadZone = null;
+let subFileInput = null;
+let subStatusBar = null;
+let loadedSubName = null;
+let removeSubBtn = null;
+let subSettingsPanel = null;
+let subToggle = null;
+let offsetSlider = null;
+let offsetDisplay = null;
+let downloadSubBtn = null;
+let videoContainer = null;
+let mainVideo = null;
+let subOverlayDiv = null;
+let subTextSpan = null;
+let loadingOverlay = null;
+let loadingMsg = null;
+let errorOverlay = null;
+let errorMsg = null;
+let videoControls = null;
+let timeline = null;
+let timelineProgress = null;
+let timelineBuffer = null;
+let ctrlPlayPause = null;
+let ctrlMute = null;
+let ctrlVolumeSlider = null;
+let timeCurrent = null;
+let timeDuration = null;
+let ctrlSkipBack = null;
+let ctrlSkipForward = null;
+let ctrlFullscreen = null;
+let centerPlayIndicator = null;
 
 // Global UI State
 let isDraggingTimeline = false;
@@ -297,6 +288,44 @@ function showControls() {
  * Sets up and binds event listeners for the entire UI
  */
 export function initUI() {
+  // DOM element query lookups inside DOMContentLoaded initialization block
+  statusDot = doc('connection-status')?.previousElementSibling;
+  statusText = doc('connection-status');
+  streamForm = doc('stream-form');
+  tvFields = doc('tv-fields');
+  loadBtn = doc('load-btn');
+  subUploadZone = doc('sub-upload-zone');
+  subFileInput = doc('sub-file-input');
+  subStatusBar = doc('sub-status-bar');
+  loadedSubName = doc('loaded-sub-name');
+  removeSubBtn = doc('remove-sub-btn');
+  subSettingsPanel = doc('sub-settings-panel');
+  subToggle = doc('sub-toggle');
+  offsetSlider = doc('offset-slider');
+  offsetDisplay = doc('offset-display');
+  downloadSubBtn = doc('download-sub-btn');
+  videoContainer = doc('video-container');
+  mainVideo = doc('main-video');
+  subOverlayDiv = doc('sub-overlay-div');
+  subTextSpan = doc('sub-text-span');
+  loadingOverlay = doc('loading-overlay');
+  loadingMsg = doc('loading-msg');
+  errorOverlay = doc('error-overlay');
+  errorMsg = doc('error-msg');
+  videoControls = doc('video-controls');
+  timeline = doc('timeline');
+  timelineProgress = doc('timeline-progress');
+  timelineBuffer = doc('timeline-buffer');
+  ctrlPlayPause = doc('ctrl-play-pause');
+  ctrlMute = doc('ctrl-mute');
+  ctrlVolumeSlider = doc('ctrl-volume-slider');
+  timeCurrent = doc('time-current');
+  timeDuration = doc('time-duration');
+  ctrlSkipBack = doc('ctrl-skip-back');
+  ctrlSkipForward = doc('ctrl-skip-forward');
+  ctrlFullscreen = doc('ctrl-fullscreen');
+  centerPlayIndicator = doc('center-play-indicator');
+
   // 1. Initialize Player and Subtitle sub-modules
   player.initPlayer(mainVideo, {
     onTimeUpdate: ({ currentTime, duration }) => {
@@ -472,11 +501,6 @@ export function initUI() {
 
   // 4. Subtitle Dashboard logic
   if (subUploadZone) {
-    subUploadZone.addEventListener('click', (e) => {
-      if (e.target === subFileInput) return;
-      subFileInput?.click();
-    });
-
     subUploadZone.addEventListener('dragover', (e) => {
       e.preventDefault();
       subUploadZone.classList.add('dragover');
