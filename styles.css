@@ -1786,13 +1786,15 @@ input[type="range"]::-webkit-slider-thumb:hover {
     transform: translateX(-2px);
 }
 
-.content-info {
+.player-nav .content-info {
     display: flex;
     flex-direction: row;
     align-items: center;
     gap: 0.75rem;
     color: var(--text-primary);
     font-size: 0.95rem;
+    flex-grow: unset !important;
+    padding: 0 !important;
 }
 
 #info-title {
@@ -1829,37 +1831,43 @@ input[type="range"]::-webkit-slider-thumb:hover {
 .quick-select {
     font-family: 'Outfit', sans-serif;
     font-size: 0.85rem;
-    font-weight: 500;
+    font-weight: 600;
     color: var(--text-primary);
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 8px;
-    padding: 0.25rem 1.75rem 0.25rem 0.75rem;
+    background: rgba(15, 23, 42, 0.6);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    padding: 0.35rem 2.25rem 0.35rem 1rem;
     cursor: pointer;
     outline: none;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23818cf8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
     background-repeat: no-repeat;
-    background-position: right 0.5rem center;
-    background-size: 0.8rem;
+    background-position: right 0.75rem center;
+    background-size: 0.9rem;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .quick-select:hover {
-    background-color: rgba(255, 255, 255, 0.12);
-    border-color: rgba(255, 255, 255, 0.25);
-    box-shadow: 0 0 12px rgba(99, 102, 241, 0.15);
+    background-color: rgba(30, 41, 59, 0.8);
+    border-color: rgba(99, 102, 241, 0.4);
+    box-shadow: 0 4px 25px rgba(99, 102, 241, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    transform: translateY(-1px);
 }
 
 .quick-select:focus {
-    border-color: #6366f1;
-    box-shadow: 0 0 12px rgba(99, 102, 241, 0.35);
+    border-color: #818cf8;
+    box-shadow: 0 0 0 3px rgba(129, 140, 248, 0.25), 0 4px 25px rgba(129, 140, 248, 0.2);
+    background-color: rgba(15, 23, 42, 0.85);
 }
 
 .quick-select option {
-    background: #0f172a;
+    background-color: #0f172a;
     color: var(--text-primary);
     font-family: 'Outfit', sans-serif;
+    font-weight: 500;
+    padding: 0.5rem;
 }
 
 /* Advanced Section */

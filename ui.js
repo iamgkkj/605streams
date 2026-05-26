@@ -5,7 +5,7 @@
 import * as api from './api.js';
 import * as player from './player.js';
 import * as subtitles from './subtitles.js';
-import { getImdbId } from './search.js';
+import { getImdbId, getTvDetails } from './search.js';
 
 // Auto-inject diagnostic debugger tools for developer consoles
 import './api-debug.js';
@@ -19,6 +19,8 @@ let streamForm = null;
 let quickTvSelectors = null;
 let quickSeason = null;
 let quickEpisode = null;
+let activeTvDetails = null;
+let activeTvShowId = '';
 let tvFields = null;
 let loadBtn = null;
 let subUploadZone = null;
@@ -524,7 +526,7 @@ export function initUI() {
           streamUrl = await api.fetchTvStream(id, season, episode);
           
           // Sync quick selectors for TV shows
-          populateTvDropdowns(season, episode);
+          loadAndPopulateTvDropdowns(id, season, episode);
         }
 
         api.debugLog('Stream URL resolved:', streamUrl);
@@ -1057,7 +1059,7 @@ async function parseUrlParamsAndLoad() {
       if (doc('tv-episode')) doc('tv-episode').value = urlEpisode;
       
       // Auto populate quick dropdowns in navbar
-      populateTvDropdowns(urlSeason, urlEpisode);
+      loadAndPopulateTvDropdowns(id, urlSeason, urlEpisode);
     }
 
     // 3. Resolve TMDb to IMDb ID conversion if ID is numeric (not starting with 'tt')
@@ -1115,18 +1117,51 @@ function updateTvRecentHistory(id, season, episode) {
 }
 
 /**
- * Populates quick TV season/episode dropdown selectors in the player header
+ * Asynchronously loads TV series metadata from TMDB and populates quick selectors
  */
-function populateTvDropdowns(activeSeason, activeEpisode) {
+async function loadAndPopulateTvDropdowns(id, activeSeason, activeEpisode) {
+  if (!id) return;
+  
+  if (activeTvShowId !== id || !activeTvDetails) {
+    activeTvShowId = id;
+    activeTvDetails = null;
+    
+    // Provide a neat inline loading placeholder in dropdowns
+    if (quickSeason) quickSeason.innerHTML = '<option value="">Loading...</option>';
+    if (quickEpisode) quickEpisode.innerHTML = '<option value="">Loading...</option>';
+    
+    try {
+      activeTvDetails = await getTvDetails(id);
+    } catch (err) {
+      console.warn('Failed to load TV metadata details:', err);
+    }
+  }
+
+  // Build selectors using the fetched metadata schema
+  populateTvDropdownsWithData(activeSeason, activeEpisode);
+}
+
+/**
+ * Builds custom Materialistic Option fields matching the exact seasons and episodes count
+ */
+function populateTvDropdownsWithData(activeSeason, activeEpisode) {
   if (!quickSeason || !quickEpisode) return;
 
   const currentSeason = parseInt(activeSeason) || 1;
   const currentEpisode = parseInt(activeEpisode) || 1;
 
-  // Render seasons dropdown (default to 15, expand if currentSeason is higher)
-  const maxSeasons = Math.max(15, currentSeason);
+  // 1. Resolve exact seasons bounds from TMDB data
+  let totalSeasons = 5;
+  let seasonsData = [];
+  if (activeTvDetails) {
+    totalSeasons = activeTvDetails.number_of_seasons || 5;
+    seasonsData = activeTvDetails.seasons || [];
+  }
+  totalSeasons = Math.max(totalSeasons, currentSeason);
+
+  // 2. Populate seasons list
   quickSeason.innerHTML = '';
-  for (let s = 1; s <= maxSeasons; s++) {
+  for (let s = 1; s <= totalSeasons; s++) {
     const opt = document.createElement('option');
     opt.value = s;
     opt.textContent = `Season ${s}`;
@@ -1134,10 +1169,19 @@ function populateTvDropdowns(activeSeason, activeEpisode) {
     quickSeason.appendChild(opt);
   }
 
-  // Render episodes dropdown (default to 24, expand if currentEpisode is higher)
-  const maxEpisodes = Math.max(24, currentEpisode);
+  // 3. Resolve exact episode counts for the currently selected season
+  let totalEpisodes = 10;
+  if (seasonsData.length > 0) {
+    const targetSeason = seasonsData.find(item => item.season_number === currentSeason);
+    if (targetSeason) {
+      totalEpisodes = targetSeason.episode_count || 10;
+    }
+  }
+  totalEpisodes = Math.max(totalEpisodes, currentEpisode);
+
+  // 4. Populate episodes list
   quickEpisode.innerHTML = '';
-  for (let e = 1; e <= maxEpisodes; e++) {
+  for (let e = 1; e <= totalEpisodes; e++) {
     const opt = document.createElement('option');
     opt.value = e;
     opt.textContent = `Episode ${e}`;
