@@ -5,6 +5,7 @@
 import * as api from './api.js';
 import * as player from './player.js';
 import * as subtitles from './subtitles.js';
+import { getImdbId } from './search.js';
 
 // Auto-inject diagnostic debugger tools for developer consoles
 import './api-debug.js';
@@ -488,6 +489,13 @@ export function initUI() {
         player.play();
         setStatus('ready', 'Stream loaded');
 
+        // Update TV watch position in browser local cache
+        if (type === 'tv') {
+          const season = doc('tv-season').value;
+          const episode = doc('tv-episode').value;
+          updateTvRecentHistory(id, season, episode);
+        }
+
       } catch (error) {
         showPlaybackError(error);
       }
@@ -495,9 +503,7 @@ export function initUI() {
   }
 
   // Dismiss Error Screen
-  if (dismissErrorBtn) {
-    dismissErrorBtn.addEventListener('click', hidePlaybackError);
-  }
+  doc('dismiss-error-btn')?.addEventListener('click', hidePlaybackError);
 
   // 4. Subtitle Dashboard logic
   if (subUploadZone) {
@@ -782,6 +788,9 @@ export function initUI() {
     manualStreamUrl.value = cachedUrl;
     setOverrideStatus('success', 'Active session override URL loaded.');
   }
+
+  // Parse URL parameters and auto-trigger stream load
+  parseUrlParamsAndLoad();
 }
 
 /**
@@ -953,3 +962,107 @@ window.addEventListener('load', () => {
     }
   });
 });
+
+/**
+ * Resolves query string parameters on mount, pre-fills visual controls and automatically triggers playback
+ */
+async function parseUrlParamsAndLoad() {
+  const params = new URLSearchParams(window.location.search);
+  const id = params.get('id');
+  const type = params.get('type');
+  const title = params.get('title');
+  const year = params.get('year');
+  const rating = params.get('rating');
+
+  // Pre-fill fields and trigger playback if id and type are specified
+  if (id && type) {
+    console.log(`Auto-loading param content: ${title} (${type})`);
+
+    // 1. Populate top player header nav controls
+    const infoTitle = doc('info-title');
+    const infoYear = doc('info-year');
+    const infoRating = doc('info-rating');
+
+    if (infoTitle) {
+      infoTitle.textContent = title || 'Loading stream...';
+    }
+    if (infoYear && year) {
+      infoYear.textContent = year;
+      infoYear.classList.remove('hidden');
+    }
+    if (infoRating && rating) {
+      infoRating.textContent = `⭐ ${rating}`;
+      infoRating.classList.remove('hidden');
+    }
+
+    // 2. Pre-fill Advanced manual loader fields
+    if (doc('content-id')) {
+      doc('content-id').value = id;
+    }
+
+    const typeRadio = document.querySelector(`input[name="content-type"][value="${type}"]`);
+    if (typeRadio) {
+      typeRadio.checked = true;
+      typeRadio.dispatchEvent(new Event('change'));
+    }
+
+    if (type === 'tv') {
+      const urlSeason = params.get('season') || '1';
+      const urlEpisode = params.get('episode') || '1';
+      if (doc('tv-season')) doc('tv-season').value = urlSeason;
+      if (doc('tv-episode')) doc('tv-episode').value = urlEpisode;
+    }
+
+    // 3. Resolve TMDb to IMDb ID conversion if ID is numeric (not starting with 'tt')
+    let activeId = id;
+    if (!id.startsWith('tt')) {
+      showSpinner('Resolving TMDb to IMDb ID...');
+      try {
+        const resolvedImdb = await getImdbId(id, type);
+        if (resolvedImdb) {
+          activeId = resolvedImdb;
+          if (doc('content-id')) {
+            doc('content-id').value = resolvedImdb;
+          }
+        }
+      } catch (err) {
+        console.warn('TMDb-to-IMDb conversion failed, using original ID:', err);
+      }
+    }
+
+    // 4. Force Advanced collapsible wrapper to be closed initially for a premium cleaner view
+    const advancedSection = doc('advanced-section');
+    if (advancedSection) {
+      advancedSection.removeAttribute('open');
+    }
+
+    // 5. Submit stream form to start playback
+    if (streamForm) {
+      streamForm.dispatchEvent(new Event('submit'));
+    }
+  } else {
+    // If not auto-loading from home page navigation, open advanced form for custom entries
+    const advancedSection = doc('advanced-section');
+    if (advancedSection) {
+      advancedSection.setAttribute('open', 'true');
+    }
+  }
+}
+
+/**
+ * Updates continue watching TV episode positions in localStorage
+ */
+function updateTvRecentHistory(id, season, episode) {
+  try {
+    const recent = JSON.parse(localStorage.getItem('605streams_recent') || '[]');
+    const index = recent.findIndex(item => item.id == id && item.type == 'tv');
+    if (index !== -1) {
+      recent[index].season = season;
+      recent[index].episode = episode;
+      recent[index].timestamp = Date.now();
+      localStorage.setItem('605streams_recent', JSON.stringify(recent));
+    }
+  } catch (e) {
+    console.error('Failed to update TV history position:', e);
+  }
+}
