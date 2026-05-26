@@ -257,11 +257,24 @@ export async function getTrending(type = 'movie') {
  * @param {string} size - size code ('w92', 'w200', 'w500', etc.)
  * @returns {string|null}
  */
-export function getImageUrl(path, size = 'w200') {
+export function getImageUrl(path, size = 'w342') {
   if (!path) return null;
   // If static item already has full image link, return it
   if (path.startsWith('http')) return path;
-  return `https://image.tmdb.org/t/p/${size}${path}`;
+  
+  const directUrl = `https://image.tmdb.org/t/p/${size}${path}`;
+  
+  // Check if we're in a restricted environment (like localhost)
+  const isRestricted = window.location.protocol === 'http:' || 
+                       window.location.hostname === 'localhost' ||
+                       window.location.hostname === '127.0.0.1';
+  
+  if (isRestricted) {
+    // Use a CORS proxy for development
+    return `https://corsproxy.io/?${encodeURIComponent(directUrl)}`;
+  }
+  
+  return directUrl;
 }
 
 /**

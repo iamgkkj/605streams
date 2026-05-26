@@ -1897,3 +1897,60 @@ input[type="range"]::-webkit-slider-thumb:hover {
         padding: 1rem 1.25rem;
     }
 }
+
+/* Image fallback styles */
+.content-poster {
+    width: 100%;
+    aspect-ratio: 2/3;
+    object-fit: cover;
+    background: #1a1a2e;
+}
+
+.placeholder-fallback {
+    width: 100%;
+    aspect-ratio: 2/3;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    border-radius: 12px;
+}
+
+.fallback-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 1rem;
+}
+
+.fallback-icon {
+    font-size: 2.5rem;
+    opacity: 0.7;
+}
+
+.fallback-title {
+    font-size: 0.8rem;
+    color: white;
+    font-weight: 500;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+    max-width: 90%;
+    word-wrap: break-word;
+    text-align: center;
+}
+
+/* Ensure images show properly */
+.content-poster[src]:not([src=""]) {
+    display: block;
+}
+
+/* Loading state for images */
+.content-poster.loading {
+    opacity: 0.5;
+    animation: pulse-poster 1s infinite;
+}
+
+@keyframes pulse-poster {
+    0%, 100% { opacity: 0.5; }
+    50% { opacity: 0.8; }
+}

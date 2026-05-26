@@ -160,7 +160,7 @@ function renderSearchDropdown(results, type) {
                  data-year="${year}" 
                  data-rating="${rating}"
                  data-poster="${item.poster_path || ''}">
-                ${poster ? `<img src="${poster}" alt="" onerror="handleImageLoadError(this, '${escapeHtml(title)}')">` : '<div class="dropdown-poster-placeholder">🎬</div>'}
+                ${poster ? `<img data-src="${poster}" alt="${escapeHtml(title)}" class="loading" style="display:none;">` : '<div class="dropdown-poster-placeholder">🎬</div>'}
                 <div class="dropdown-info">
                     <div class="dropdown-title">${escapeHtml(title)}</div>
                     <div class="dropdown-year">${year} • ⭐ ${rating}</div>
@@ -168,6 +168,11 @@ function renderSearchDropdown(results, type) {
             </div>
         `;
     }).join('');
+    
+    // Preload all search dropdown images
+    searchDropdown.querySelectorAll('img[data-src]').forEach(img => {
+        loadImageWithRetry(img, img.dataset.src, 2);
+    });
     
     // Bind click selectors to dropdown options
     searchDropdown.querySelectorAll('.dropdown-item').forEach(item => {
@@ -248,7 +253,7 @@ function renderContentGrid(items, type, container) {
         }
         
         const posterValue = item.poster || item.poster_path;
-        const poster = posterValue ? getImageUrl(posterValue, 'w200') : null;
+        const poster = posterValue ? getImageUrl(posterValue, 'w342') : null;
         
         let rating = 'N/A';
         if (item.rating) {
@@ -265,7 +270,7 @@ function renderContentGrid(items, type, container) {
                  data-year="${year}" 
                  data-rating="${rating}"
                  data-poster="${posterValue || ''}">
-                ${poster ? `<img src="${poster}" alt="${escapeHtml(title)}" class="content-poster" loading="lazy" onerror="handleImageLoadError(this, '${escapeHtml(title)}')">` : '<div class="content-poster placeholder">🎬</div>'}
+                ${poster ? `<img data-src="${poster}" alt="${escapeHtml(title)}" class="content-poster loading" style="display:none;">` : '<div class="content-poster placeholder">🎬</div>'}
                 <div class="content-info">
                     <div class="content-title">${escapeHtml(title)}</div>
                     <div class="content-meta">${year} • ⭐ ${rating}</div>
@@ -273,6 +278,11 @@ function renderContentGrid(items, type, container) {
             </div>
         `;
     }).join('');
+    
+    // Asynchronously preload all card images using retry logic
+    container.querySelectorAll('img[data-src]').forEach(img => {
+        loadImageWithRetry(img, img.dataset.src, 2);
+    });
     
     // Bind click selectors on card elements
     container.querySelectorAll('.content-card').forEach(card => {
@@ -348,30 +358,97 @@ function escapeHtml(str) {
 }
 
 /**
- * Globally registered image error handler to construct gorgeous linear gradient SVG fallback posters
+ * Attempts to load an image with retries and proxy wrappers
+ * @param {HTMLImageElement} img - The image element
+ * @param {string} url - Image URL
+ * @param {number} retries - Remaining retries
  */
-window.handleImageLoadError = function(img, title) {
-    img.onerror = null; // Prevent recursion loops
-    const hash = Array.from(title).reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    const hue1 = hash % 360;
-    const hue2 = (hash + 75) % 360;
+function loadImageWithRetry(img, url, retries = 2) {
+    if (retries === 0) {
+        applyGradientFallback(img);
+        return;
+    }
     
-    const svg = `
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 300" width="100%" height="100%">
-            <defs>
-                <linearGradient id="grad_${hash}" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stop-color="hsl(${hue1}, 80%, 28%)"/>
-                    <stop offset="100%" stop-color="hsl(${hue2}, 85%, 12%)"/>
-                </linearGradient>
-            </defs>
-            <rect width="200" height="300" fill="url(#grad_${hash})" rx="12"/>
-            <circle cx="100" cy="115" r="32" fill="rgba(255,255,255,0.07)"/>
-            <text x="100" y="126" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="32" fill="rgba(255,255,255,0.25)" text-anchor="middle">🎬</text>
-            <text x="100" y="215" font-family="system-ui, -apple-system, BlinkMacSystemFont, sans-serif" font-size="14" font-weight="bold" fill="rgba(255,255,255,0.92)" text-anchor="middle">${escapeSvg(title)}</text>
-        </svg>
-    `;
+    img.src = url;
     
-    img.src = `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+    img.onload = () => {
+        img.style.display = 'block';
+        img.classList.remove('loading');
+        if (img.parentElement?.querySelector('.placeholder-fallback')) {
+            img.parentElement.querySelector('.placeholder-fallback')?.remove();
+        }
+    };
+    
+    img.onerror = () => {
+        console.warn(`Image failed to load: ${url}, retries left: ${retries - 1}`);
+        
+        if (retries > 1) {
+            // Try different size or proxy
+            let newUrl = url;
+            if (url.includes('w92')) {
+                newUrl = url.replace('w92', 'w154');
+            } else if (url.includes('w342')) {
+                newUrl = url.replace('w342', 'w500');
+            } else {
+                newUrl = `https://corsproxy.io/?${encodeURIComponent(url)}`;
+            }
+            loadImageWithRetry(img, newUrl, retries - 1);
+        } else {
+            applyGradientFallback(img);
+        }
+    };
+}
+
+/**
+ * Construct linear gradient fallback poster
+ */
+function applyGradientFallback(img) {
+    img.style.display = 'none';
+    const title = img.alt || 'Movie';
+    const parent = img.parentElement;
+    
+    if (parent && !parent.querySelector('.placeholder-fallback')) {
+        const gradientDiv = document.createElement('div');
+        
+        // Custom styling check for dropdown autocomplete vs main content grids
+        if (parent.classList.contains('dropdown-item')) {
+            gradientDiv.className = 'dropdown-poster-placeholder placeholder-fallback';
+            gradientDiv.style.width = '36px';
+            gradientDiv.style.height = '50px';
+            gradientDiv.style.borderRadius = '4px';
+            gradientDiv.style.flexShrink = '0';
+            gradientDiv.style.background = 'linear-gradient(135deg, #1e1b4b, #0c0a09)';
+            gradientDiv.innerHTML = `
+                <div class="fallback-content" style="padding: 0; gap: 0;">
+                    <span class="fallback-icon" style="font-size: 1rem;">🎬</span>
+                </div>
+            `;
+        } else {
+            gradientDiv.className = 'content-poster placeholder-fallback';
+            const hash = title.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+            const hue1 = hash % 360;
+            const hue2 = (hue1 + 40) % 360;
+            
+            gradientDiv.style.background = `linear-gradient(135deg, hsl(${hue1}, 70%, 25%), hsl(${hue2}, 70%, 15%))`;
+            gradientDiv.innerHTML = `
+                <div class="fallback-content">
+                    <span class="fallback-icon">🎬</span>
+                    <span class="fallback-title">${escapeHtml(title.substring(0, 20))}</span>
+                </div>
+            `;
+        }
+        
+        parent.insertBefore(gradientDiv, img);
+    }
+}
+
+// Add console diagnostic tools
+window.debugImages = () => {
+    const images = document.querySelectorAll('.content-poster');
+    images.forEach(img => {
+        console.log('Image src:', img.src);
+        img.complete ? console.log('✅ Loaded successfully!') : console.log('❌ Failed or still loading');
+    });
 };
 
 function escapeSvg(str) {
