@@ -16,6 +16,9 @@ const doc = (id) => document.getElementById(id);
 let statusDot = null;
 let statusText = null;
 let streamForm = null;
+let quickTvSelectors = null;
+let quickSeason = null;
+let quickEpisode = null;
 let tvFields = null;
 let loadBtn = null;
 let subUploadZone = null;
@@ -294,6 +297,40 @@ export function initUI() {
   statusText = doc('connection-status');
   streamForm = doc('stream-form');
   tvFields = doc('tv-fields');
+  
+  // Resolve Quick TV Selectors
+  quickTvSelectors = doc('quick-tv-selectors');
+  quickSeason = doc('quick-season');
+  quickEpisode = doc('quick-episode');
+
+  // Bind Quick TV dropdown selectors listeners
+  if (quickSeason && quickEpisode) {
+    quickSeason.addEventListener('change', () => {
+      const tvSeasonInput = doc('tv-season');
+      if (tvSeasonInput) {
+        tvSeasonInput.value = quickSeason.value;
+      }
+      // Reset episode to 1 on season switch for standard UX
+      const tvEpisodeInput = doc('tv-episode');
+      if (tvEpisodeInput) {
+        tvEpisodeInput.value = '1';
+        if (quickEpisode) quickEpisode.value = '1';
+      }
+      if (streamForm) {
+        streamForm.dispatchEvent(new Event('submit'));
+      }
+    });
+
+    quickEpisode.addEventListener('change', () => {
+      const tvEpisodeInput = doc('tv-episode');
+      if (tvEpisodeInput) {
+        tvEpisodeInput.value = quickEpisode.value;
+      }
+      if (streamForm) {
+        streamForm.dispatchEvent(new Event('submit'));
+      }
+    });
+  }
   loadBtn = doc('load-btn');
   subUploadZone = doc('sub-upload-zone');
   subFileInput = doc('sub-file-input');
@@ -477,10 +514,17 @@ export function initUI() {
         let streamUrl = '';
         if (type === 'movie') {
           streamUrl = await api.fetchMovieStream(id);
+          // Hide quick selectors for movies
+          if (quickTvSelectors) {
+            quickTvSelectors.classList.add('hidden');
+          }
         } else {
           const season = doc('tv-season').value;
           const episode = doc('tv-episode').value;
           streamUrl = await api.fetchTvStream(id, season, episode);
+          
+          // Sync quick selectors for TV shows
+          populateTvDropdowns(season, episode);
         }
 
         api.debugLog('Stream URL resolved:', streamUrl);
@@ -1011,6 +1055,9 @@ async function parseUrlParamsAndLoad() {
       const urlEpisode = params.get('episode') || '1';
       if (doc('tv-season')) doc('tv-season').value = urlSeason;
       if (doc('tv-episode')) doc('tv-episode').value = urlEpisode;
+      
+      // Auto populate quick dropdowns in navbar
+      populateTvDropdowns(urlSeason, urlEpisode);
     }
 
     // 3. Resolve TMDb to IMDb ID conversion if ID is numeric (not starting with 'tt')
@@ -1064,5 +1111,42 @@ function updateTvRecentHistory(id, season, episode) {
     }
   } catch (e) {
     console.error('Failed to update TV history position:', e);
+  }
+}
+
+/**
+ * Populates quick TV season/episode dropdown selectors in the player header
+ */
+function populateTvDropdowns(activeSeason, activeEpisode) {
+  if (!quickSeason || !quickEpisode) return;
+
+  const currentSeason = parseInt(activeSeason) || 1;
+  const currentEpisode = parseInt(activeEpisode) || 1;
+
+  // Render seasons dropdown (default to 15, expand if currentSeason is higher)
+  const maxSeasons = Math.max(15, currentSeason);
+  quickSeason.innerHTML = '';
+  for (let s = 1; s <= maxSeasons; s++) {
+    const opt = document.createElement('option');
+    opt.value = s;
+    opt.textContent = `Season ${s}`;
+    if (s === currentSeason) opt.selected = true;
+    quickSeason.appendChild(opt);
+  }
+
+  // Render episodes dropdown (default to 24, expand if currentEpisode is higher)
+  const maxEpisodes = Math.max(24, currentEpisode);
+  quickEpisode.innerHTML = '';
+  for (let e = 1; e <= maxEpisodes; e++) {
+    const opt = document.createElement('option');
+    opt.value = e;
+    opt.textContent = `Episode ${e}`;
+    if (e === currentEpisode) opt.selected = true;
+    quickEpisode.appendChild(opt);
+  }
+
+  // Reveal selectors in header bar
+  if (quickTvSelectors) {
+    quickTvSelectors.classList.remove('hidden');
   }
 }
