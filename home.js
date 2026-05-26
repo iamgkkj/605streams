@@ -3,7 +3,7 @@
  * Handles search typeaheads, trending grid display, and recently watched history navigation.
  */
 
-import { searchContent, getTrending, getImageUrl } from './search.js';
+import { searchContent, getTrending, getImageUrl, getBackupImages } from './search.js';
 
 // DOM Elements
 let searchInput = null;
@@ -160,7 +160,7 @@ function renderSearchDropdown(results, type) {
                  data-year="${year}" 
                  data-rating="${rating}"
                  data-poster="${item.poster_path || ''}">
-                ${poster ? `<img data-src="${poster}" alt="${escapeHtml(title)}" class="loading" style="display:none;">` : '<div class="dropdown-poster-placeholder">🎬</div>'}
+                ${poster ? `<img data-src="${poster}" data-id="${item.id}" data-type="${type}" alt="${escapeHtml(title)}" class="loading" style="display:none;">` : '<div class="dropdown-poster-placeholder">🎬</div>'}
                 <div class="dropdown-info">
                     <div class="dropdown-title">${escapeHtml(title)}</div>
                     <div class="dropdown-year">${year} • ⭐ ${rating}</div>
@@ -270,7 +270,7 @@ function renderContentGrid(items, type, container) {
                  data-year="${year}" 
                  data-rating="${rating}"
                  data-poster="${posterValue || ''}">
-                ${poster ? `<img data-src="${poster}" alt="${escapeHtml(title)}" class="content-poster loading" style="display:none;">` : '<div class="content-poster placeholder">🎬</div>'}
+                ${poster ? `<img data-src="${poster}" data-id="${item.id}" data-type="${cardType}" alt="${escapeHtml(title)}" class="content-poster loading" style="display:none;">` : '<div class="content-poster placeholder">🎬</div>'}
                 <div class="content-info">
                     <div class="content-title">${escapeHtml(title)}</div>
                     <div class="content-meta">${year} • ⭐ ${rating}</div>
@@ -379,7 +379,7 @@ function loadImageWithRetry(img, url, retries = 2) {
         }
     };
     
-    img.onerror = () => {
+    img.onerror = async () => {
         console.warn(`Image failed to load: ${url}, retries left: ${retries - 1}`);
         
         if (retries > 1) {
@@ -394,6 +394,25 @@ function loadImageWithRetry(img, url, retries = 2) {
             }
             loadImageWithRetry(img, newUrl, retries - 1);
         } else {
+            // Query fallback alternative movie/tv images list using getBackupImages
+            const tmdbId = img.dataset.id;
+            const cardType = img.dataset.type || 'movie';
+            if (tmdbId && !img.hasAttribute('data-backup-tried')) {
+                img.setAttribute('data-backup-tried', '1');
+                console.log(`Querying TMDB /images fallback API for ID: ${tmdbId}`);
+                try {
+                    const backups = await getBackupImages(tmdbId, cardType);
+                    if (backups && backups.length > 0) {
+                        const sizeCode = img.classList.contains('content-poster') ? 'w342' : 'w92';
+                        const backupUrl = getImageUrl(backups[0], sizeCode);
+                        console.log(`Resolved alternative fallback image path: ${backupUrl}`);
+                        loadImageWithRetry(img, backupUrl, 2);
+                        return;
+                    }
+                } catch (e) {
+                    console.warn(`TMDB /images fallback fetch failed for ID ${tmdbId}:`, e);
+                }
+            }
             applyGradientFallback(img);
         }
     };

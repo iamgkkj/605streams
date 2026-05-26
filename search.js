@@ -304,3 +304,35 @@ export async function getImdbId(tmdbId, type = 'movie') {
     return OFFLINE_IMDB_MAPPING[tmdbId.toString()] || null;
   }
 }
+
+/**
+ * Fetches backup alternative image paths from TMDB for a movie or TV show using the /images API
+ * @param {string|number} tmdbId
+ * @param {string} type - 'movie' or 'tv'
+ * @returns {Promise<Array<string>>}
+ */
+export async function getBackupImages(tmdbId, type = 'movie') {
+  if (!tmdbId) return [];
+  const endpoint = type === 'movie' ? `movie/${tmdbId}/images` : `tv/${tmdbId}/images`;
+  try {
+    const data = await fetchWithKeyRotation(endpoint);
+    const paths = [];
+    
+    // 1. Collect alternative posters first
+    if (data.posters && data.posters.length > 0) {
+      data.posters.slice(0, 5).forEach(p => {
+        if (p.file_path) paths.push(p.file_path);
+      });
+    }
+    // 2. Add backdrops if poster lists are empty
+    if (data.backdrops && data.backdrops.length > 0) {
+      data.backdrops.slice(0, 5).forEach(b => {
+        if (b.file_path) paths.push(b.file_path);
+      });
+    }
+    return paths;
+  } catch (error) {
+    console.warn(`Failed to fetch backup images for ${tmdbId}:`, error);
+    return [];
+  }
+}
