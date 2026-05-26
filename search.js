@@ -126,11 +126,19 @@ const STATIC_TRENDING_TV = [
     type: "tv"
   },
   {
-    id: 76479,
+    id: 71790,
     name: "S.W.A.T.",
     first_air_date: "2017-11-02",
     vote_average: 7.7,
     poster_path: "/uq45UfL8Z6a3d9mFf4gLv7fLvmg4.jpg",
+    type: "tv"
+  },
+  {
+    id: 76479,
+    name: "The Boys",
+    first_air_date: "2019-07-25",
+    vote_average: 8.5,
+    poster_path: "/stTEyCBFT2sG2qXcNIQQJbjdxMJ.jpg",
     type: "tv"
   }
 ];
@@ -148,7 +156,8 @@ const OFFLINE_IMDB_MAPPING = {
   "66732": "tt5027774",  // Stranger Things
   "1402": "tt1276104",   // The Walking Dead
   "456": "tt0096697",    // The Simpsons
-  "76479": "tt6111130"   // SWAT
+  "71790": "tt6111130",  // SWAT
+  "76479": "tt1190634"   // The Boys
 };
 
 /**
