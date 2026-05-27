@@ -651,13 +651,17 @@ export function initUI() {
       isDraggingTimeline = true;
       const pct = parseFloat(e.target.value);
       const state = player.getPlayerState();
+      const targetSec = (pct / 100) * state.duration;
       
       if (timelineProgress) {
         timelineProgress.style.width = `${pct}%`;
       }
       if (timeCurrent) {
-        timeCurrent.textContent = formatTime((pct / 100) * state.duration);
+        timeCurrent.textContent = formatTime(targetSec);
       }
+      
+      // Update subtitles in real-time while dragging/scrubbing
+      subtitles.renderCues(targetSec);
     });
 
     timeline.addEventListener('change', (e) => {
@@ -854,8 +858,18 @@ function handleKeyboardShortcuts(e) {
   switch (e.key) {
     case ' ':
       e.preventDefault();
-      player.togglePlay();
-      flashCenterIndicator(state.paused ? 'play' : 'pause');
+      if (mainVideo && mainVideo.classList.contains('hidden')) {
+        if (simulatedInterval) {
+          stopSimulatedSubtitles();
+          flashCenterIndicator('pause');
+        } else {
+          startSimulatedSubtitles();
+          flashCenterIndicator('play');
+        }
+      } else {
+        player.togglePlay();
+        flashCenterIndicator(state.paused ? 'play' : 'pause');
+      }
       showControls();
       break;
     case 'f':
@@ -871,12 +885,24 @@ function handleKeyboardShortcuts(e) {
       break;
     case 'ArrowLeft':
       e.preventDefault();
-      player.seek(state.currentTime - 10);
+      if (mainVideo && mainVideo.classList.contains('hidden')) {
+        simulatedTime = Math.max(0, simulatedTime - 10);
+        subtitles.renderCues(simulatedTime);
+        flashCenterIndicator('skip-back');
+      } else {
+        player.seek(state.currentTime - 10);
+      }
       showControls();
       break;
     case 'ArrowRight':
       e.preventDefault();
-      player.seek(state.currentTime + 10);
+      if (mainVideo && mainVideo.classList.contains('hidden')) {
+        simulatedTime = simulatedTime + 10;
+        subtitles.renderCues(simulatedTime);
+        flashCenterIndicator('skip-forward');
+      } else {
+        player.seek(state.currentTime + 10);
+      }
       showControls();
       break;
     case 'ArrowUp':

@@ -92,6 +92,8 @@ export class SubtitleEngine {
         this.render(this.video.currentTime);
       };
       this.video.addEventListener('timeupdate', this._timeUpdateHandler);
+      this.video.addEventListener('seeking', this._timeUpdateHandler);
+      this.video.addEventListener('seeked', this._timeUpdateHandler);
     }
   }
 
@@ -332,6 +334,8 @@ export class SubtitleEngine {
   destroy() {
     if (this.video && this._timeUpdateHandler) {
       this.video.removeEventListener('timeupdate', this._timeUpdateHandler);
+      this.video.removeEventListener('seeking', this._timeUpdateHandler);
+      this.video.removeEventListener('seeked', this._timeUpdateHandler);
     }
     this.reset();
     this.video = null;
