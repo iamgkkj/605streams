@@ -901,7 +901,29 @@ function handleSubtitleFileSelection(file) {
 
   const reader = new FileReader();
   reader.onload = function(e) {
-    const text = e.target.result;
+    const arrayBuffer = e.target.result;
+    const uint8Array = new Uint8Array(arrayBuffer);
+    
+    // 1. Detect Byte Order Mark (BOM) for standard UTF encodings
+    let encoding = 'utf-8';
+    if (uint8Array[0] === 0xEF && uint8Array[1] === 0xBB && uint8Array[2] === 0xBF) {
+      encoding = 'utf-8';
+    } else if (uint8Array[0] === 0xFF && uint8Array[1] === 0xFE) {
+      encoding = 'utf-16le';
+    } else if (uint8Array[0] === 0xFE && uint8Array[1] === 0xFF) {
+      encoding = 'utf-16be';
+    }
+    
+    // 2. Decode using TextDecoder with fatal flag to trigger fallback on invalid UTF-8 sequences
+    let text = '';
+    try {
+      const decoder = new TextDecoder(encoding, { fatal: true });
+      text = decoder.decode(uint8Array);
+    } catch (err) {
+      // Fallback to windows-1252 (very common for European/Spanish/French subtitle files)
+      const fallbackDecoder = new TextDecoder('windows-1252');
+      text = fallbackDecoder.decode(uint8Array);
+    }
     
     try {
       const cues = subtitles.parseSubtitleFile(text, file.name);
@@ -936,7 +958,7 @@ function handleSubtitleFileSelection(file) {
     }
   };
   
-  reader.readAsText(file);
+  reader.readAsArrayBuffer(file);
 }
 
 /**
