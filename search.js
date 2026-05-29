@@ -164,7 +164,7 @@ const OFFLINE_IMDB_MAPPING = {
  * Perform a fetch with a specific connection timeout
  */
 async function fetchWithTimeout(resource, options = {}) {
-  const { timeout = 1500 } = options;
+  const { timeout = 8000 } = options;
   
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeout);
@@ -202,7 +202,7 @@ async function fetchWithKeyRotation(endpoint, queryParams = {}) {
   if (customKey && customKey.trim().length > 5) {
     const url = buildUrl(endpoint, customKey.trim(), queryParams);
     try {
-      const response = await fetchWithTimeout(url, { timeout: 1200 });
+      const response = await fetchWithTimeout(url, { timeout: 5000 });
       if (response.ok) return await response.json();
       console.warn(`Custom TMDB key failed with status: ${response.status}`);
     } catch (e) {
@@ -220,7 +220,7 @@ async function fetchWithKeyRotation(endpoint, queryParams = {}) {
     const key = activeKeys[i];
     const url = buildUrl(endpoint, key, queryParams);
     try {
-      const response = await fetchWithTimeout(url, { timeout: 1200 });
+      const response = await fetchWithTimeout(url, { timeout: 5000 });
       if (response.ok) {
         // Successfully reached TMDB! Reset offline state if it was set
         isTmdOffline = false;

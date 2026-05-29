@@ -2134,3 +2134,31 @@ input[type="range"]::-webkit-slider-thumb:hover {
 .adblock-modal.hidden {
     display: none !important;
 }
+
+/* Dedicated Search Results Section styles */
+.close-search-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: var(--text-muted);
+    font-size: 1.1rem;
+    width: 2.2rem;
+    height: 2.2rem;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    outline: none;
+}
+
+.close-search-btn:hover {
+    background: rgba(239, 68, 68, 0.15);
+    border-color: rgba(239, 68, 68, 0.3);
+    color: #ef4444;
+    transform: scale(1.08) rotate(90deg);
+}
+
+.close-search-btn:active {
+    transform: scale(0.95);
+}

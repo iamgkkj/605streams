@@ -12,6 +12,9 @@ let searchDropdown = null;
 let trendingGrid = null;
 let recentGrid = null;
 let recentSection = null;
+let searchResultsSection = null;
+let searchResultsGrid = null;
+let closeSearchResultsBtn = null;
 
 let currentSearchType = 'movie';
 let searchTimeout = null;
@@ -49,6 +52,13 @@ document.addEventListener('DOMContentLoaded', () => {
     trendingGrid = document.getElementById('trending-grid');
     recentGrid = document.getElementById('recent-grid');
     recentSection = document.getElementById('recent-section');
+    searchResultsSection = document.getElementById('search-results-section');
+    searchResultsGrid = document.getElementById('search-results-grid');
+    closeSearchResultsBtn = document.getElementById('close-search-results');
+    
+    if (closeSearchResultsBtn) {
+        closeSearchResultsBtn.addEventListener('click', clearSearch);
+    }
     
     // 1. Bind search input and trigger actions
     if (searchBtn) {
@@ -111,16 +121,18 @@ document.addEventListener('DOMContentLoaded', () => {
     loadRecentlyViewed();
 });
 
+function clearSearch() {
+    if (searchInput) searchInput.value = '';
+    if (searchDropdown) searchDropdown.classList.add('hidden');
+    if (searchResultsSection) searchResultsSection.style.display = 'none';
+}
+
 function triggerAutoSearch() {
     const query = searchInput ? searchInput.value.trim() : '';
     if (query.length >= 2) {
         performSearch();
     } else {
-        // If empty/cleared, automatically reload unified trending content
-        loadTrending(currentSearchType);
-        // Restore trending section header
-        const sectionHeader = document.querySelector('.trending-section .section-header h2');
-        if (sectionHeader) sectionHeader.innerHTML = '🔥 Trending Now';
+        if (searchResultsSection) searchResultsSection.style.display = 'none';
     }
 }
 
@@ -131,13 +143,7 @@ async function onSearchInput(e) {
     
     if (query.length === 0) {
         searchDropdown.classList.add('hidden');
-        
-        // Restore trending section header
-        const sectionHeader = document.querySelector('.trending-section .section-header h2');
-        if (sectionHeader) sectionHeader.innerHTML = '🔥 Trending Now';
-        
-        // Load active trending category matching the unified filter type
-        loadTrending(currentSearchType);
+        if (searchResultsSection) searchResultsSection.style.display = 'none';
         return;
     }
     
@@ -212,31 +218,40 @@ function renderSearchDropdown(results, type) {
 
 async function performSearch() {
     const query = searchInput.value.trim();
-    if (!query) return;
+    if (!query) {
+        if (searchResultsSection) searchResultsSection.style.display = 'none';
+        return;
+    }
     
     // Dismiss active suggest dropdown
     if (searchDropdown) {
         searchDropdown.classList.add('hidden');
     }
     
-    // Display loading text
-    if (trendingGrid) {
-        trendingGrid.innerHTML = '<div class="loading-spinner">Searching streams...</div>';
+    // Display and set title of the dedicated Search Results Section
+    if (searchResultsSection) {
+        searchResultsSection.style.display = 'block';
+        const resultsTitle = searchResultsSection.querySelector('.section-header h2');
+        if (resultsTitle) {
+            resultsTitle.innerHTML = `🔍 Search Results: "${escapeHtml(query)}"`;
+        }
     }
     
-    // Update main section title
-    const sectionHeader = document.querySelector('.trending-section .section-header h2');
-    if (sectionHeader) {
-        sectionHeader.innerHTML = `🔍 Search Results: "${escapeHtml(query)}"`;
+    // Display loading text inside dedicated search grid
+    if (searchResultsGrid) {
+        searchResultsGrid.innerHTML = '<div class="loading-spinner">Searching streams...</div>';
     }
     
     try {
         const results = await searchContent(query, currentSearchType);
-        renderContentGrid(results, currentSearchType, trendingGrid);
+        renderContentGrid(results, currentSearchType, searchResultsGrid);
+        
+        // Scroll to search results section smoothly
+        searchResultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch (error) {
         console.error('Submit query search error:', error);
-        if (trendingGrid) {
-            trendingGrid.innerHTML = `<div class="no-results">Search failed: ${error.message}</div>`;
+        if (searchResultsGrid) {
+            searchResultsGrid.innerHTML = `<div class="no-results">Search failed: ${error.message}</div>`;
         }
     }
 }
