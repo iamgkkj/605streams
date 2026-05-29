@@ -165,8 +165,9 @@ function renderSearchDropdown(results, type) {
     
     const limited = results.slice(0, 6);
     searchDropdown.innerHTML = limited.map(item => {
-        const title = type === 'movie' ? item.title : item.name;
-        const dateKey = type === 'movie' ? item.release_date : item.first_air_date;
+        const actualType = item.type || type;
+        const title = item.title || item.name;
+        const dateKey = actualType === 'movie' ? item.release_date : item.first_air_date;
         const year = dateKey ? dateKey.split('-')[0] : 'N/A';
         const poster = item.poster_path ? getImageUrl(item.poster_path, 'w92') : null;
         const rating = item.vote_average ? item.vote_average.toFixed(1) : 'N/A';
@@ -174,12 +175,12 @@ function renderSearchDropdown(results, type) {
         return `
             <div class="dropdown-item" 
                  data-id="${item.id}" 
-                 data-type="${type}" 
+                 data-type="${actualType}" 
                  data-title="${escapeHtml(title)}" 
                  data-year="${year}" 
                  data-rating="${rating}"
                  data-poster="${item.poster_path || ''}">
-                ${poster ? `<img data-src="${poster}" data-id="${item.id}" data-type="${type}" alt="${escapeHtml(title)}" class="loading" style="display:none;">` : '<div class="dropdown-poster-placeholder">🎬</div>'}
+                ${poster ? `<img data-src="${poster}" data-id="${item.id}" data-type="${actualType}" alt="${escapeHtml(title)}" class="loading" style="display:none;">` : '<div class="dropdown-poster-placeholder">🎬</div>'}
                 <div class="dropdown-info">
                     <div class="dropdown-title">${escapeHtml(title)}</div>
                     <div class="dropdown-year">${year} • ⭐ ${rating}</div>
