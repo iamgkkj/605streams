@@ -258,17 +258,113 @@ function buildUrl(endpoint, apiKey, queryParams) {
  * @param {string} type - 'movie' or 'tv'
  * @returns {Promise<Array>}
  */
+/**
+ * Searches TMDB for movies or TV shows using a highly robust multi-stage lookup engine.
+ * Supports: IMDb ttID lookup, Smart Year Parsing, and Multi-search broad category fallbacks.
+ * @param {string} query - The search query string
+ * @param {string} type - 'movie' or 'tv'
+ * @returns {Promise<Array>}
+ */
 export async function searchContent(query, type = 'movie') {
   if (!query || query.trim().length < 2) return [];
   
+  const cleanQuery = query.trim();
+
+  // Pass 1: IMDb tt-ID lookup (e.g. tt0903747) utilizing the TMDB /find endpoint
+  const imdbMatch = cleanQuery.match(/^(tt\d+)$/i);
+  if (imdbMatch) {
+    const imdbId = imdbMatch[1].toLowerCase();
+    try {
+      const data = await fetchWithKeyRotation(`find/${imdbId}`, {
+        external_source: 'imdb_id'
+      });
+      
+      let matchedResults = [];
+      if (type === 'movie' && data.movie_results && data.movie_results.length > 0) {
+        matchedResults = data.movie_results;
+      } else if (type === 'tv' && data.tv_results && data.tv_results.length > 0) {
+        matchedResults = data.tv_results;
+      } else {
+        // Universal match
+        matchedResults = [
+          ...(data.movie_results || []),
+          ...(data.tv_results || [])
+        ];
+      }
+      
+      if (matchedResults.length > 0) {
+        return matchedResults.map(item => ({
+          ...item,
+          type: item.title ? 'movie' : 'tv'
+        }));
+      }
+    } catch (err) {
+      console.warn('TMDb Find API external ID lookup failed:', err);
+    }
+  }
+
+  // Pass 2: Smart Year Extraction (e.g. "The Matrix 1999" -> query: "The Matrix", year: "1999")
+  const yearMatch = cleanQuery.match(/\b(19\d\d|20\d\d)\b/);
+  let parsedTitle = cleanQuery;
+  let parsedYear = null;
+  if (yearMatch) {
+    parsedYear = yearMatch[1];
+    parsedTitle = cleanQuery.replace(yearMatch[0], '').replace(/\s+/g, ' ').trim();
+  }
+
   const endpoint = type === 'movie' ? 'search/movie' : 'search/tv';
 
   try {
-    const data = await fetchWithKeyRotation(endpoint, {
-      query: query.trim(),
-      include_adult: 'false'
-    });
-    return data.results || [];
+    let results = [];
+    
+    // Stage A: Specific Search query with Year filters (extremely impressive accuracy for unpopular/older specific results)
+    if (parsedYear && parsedTitle.length >= 2) {
+      const queryParams = {
+        query: parsedTitle,
+        include_adult: 'false'
+      };
+      if (type === 'movie') {
+        queryParams.primary_release_year = parsedYear;
+      } else {
+        queryParams.first_air_date_year = parsedYear;
+      }
+      const data = await fetchWithKeyRotation(endpoint, queryParams);
+      results = data.results || [];
+    }
+
+    // Stage B: Standard TMDB Search fallback
+    if (results.length === 0) {
+      const data = await fetchWithKeyRotation(endpoint, {
+        query: cleanQuery,
+        include_adult: 'false'
+      });
+      results = data.results || [];
+    }
+
+    // Stage C: Broad TMDB multi-search fallback (grabs extremely obscure/unpopular results, foreign content, keywords)
+    if (results.length === 0) {
+      const data = await fetchWithKeyRotation('search/multi', {
+        query: cleanQuery,
+        include_adult: 'false'
+      });
+      if (data.results && data.results.length > 0) {
+        results = data.results.filter(item => item.media_type === 'movie' || item.media_type === 'tv');
+        
+        // Sort matching content category (movie/tv) first in results list
+        results.sort((a, b) => {
+          if (a.media_type === type && b.media_type !== type) return -1;
+          if (a.media_type !== type && b.media_type === type) return 1;
+          return 0;
+        });
+      }
+    }
+
+    // Ensure all items carry their type property
+    return results.map(item => ({
+      ...item,
+      type: item.media_type || type
+    }));
+
   } catch (error) {
     console.warn('TMDB Search API failed or timed out. Filtering static database offline.', error);
     
@@ -301,29 +397,15 @@ export async function getTrending(type = 'movie') {
 }
 
 /**
- * Resolves TMDB poster image URLs
+ * Resolves TMDB poster image URLs directly from TMDB CDN (CORS proxy bypassed for fast direct image rendering)
  * @param {string} path - Poster image path from TMDB
  * @param {string} size - size code ('w92', 'w200', 'w500', etc.)
  * @returns {string|null}
  */
 export function getImageUrl(path, size = 'w342') {
   if (!path) return null;
-  // If static item already has full image link, return it
   if (path.startsWith('http')) return path;
-  
-  const directUrl = `https://image.tmdb.org/t/p/${size}${path}`;
-  
-  // Check if we're in a restricted environment (like localhost)
-  const isRestricted = window.location.protocol === 'http:' || 
-                       window.location.hostname === 'localhost' ||
-                       window.location.hostname === '127.0.0.1';
-  
-  if (isRestricted) {
-    // Use a CORS proxy for development
-    return `https://corsproxy.io/?${encodeURIComponent(directUrl)}`;
-  }
-  
-  return directUrl;
+  return `https://image.tmdb.org/t/p/${size}${path}`;
 }
 
 /**
